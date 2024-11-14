@@ -1,15 +1,14 @@
-use crate::types::jsonrpc;
+use crate::types::message::Message;
 
 pub enum Event {
-  ListeningOn(String),
+    ListeningOn(String),
 
-  Connected(String),
-  Disconnected(String),
+    Connected(String),
+    Disconnected(String),
 
-  Data(Data),
+    Data(Data),
 }
 
 pub enum Data {
-  Message(jsonrpc::Request),
+    Message(Message),
 }
-

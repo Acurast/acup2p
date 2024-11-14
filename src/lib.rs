@@ -1,2 +1,2 @@
-pub mod types;
 pub mod p2p;
+pub mod types;
