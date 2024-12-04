@@ -3,22 +3,10 @@ use std::time::Duration;
 
 use tokio::time::sleep;
 
-use crate::base::types::OutboundProtocolMessage;
-
 use super::super::node::NodeId;
+use super::super::Intent;
 use super::message::Message;
 use super::NodeInner;
-
-#[derive(Debug, Clone)]
-pub(crate) enum Intent {
-    DirectMessage {
-        peer: NodeId,
-        message: OutboundProtocolMessage,
-    },
-    Dial(NodeId),
-    Disconnect(NodeId),
-    Close,
-}
 
 impl fmt::Display for Intent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -32,7 +20,7 @@ impl fmt::Display for Intent {
 }
 
 impl NodeInner {
-    pub(crate) async fn on_intent(&mut self, intent: Intent) {
+    pub(super) async fn on_intent(&mut self, intent: Intent) {
         match intent {
             Intent::DirectMessage {
                 peer: node,
@@ -62,7 +50,7 @@ impl NodeInner {
         }
     }
 
-    pub(crate) async fn send_dial_intent(&mut self, node: NodeId, delay: Option<Duration>) {
+    pub(super) async fn send_dial_intent(&mut self, node: NodeId, delay: Option<Duration>) {
         if let Some(delay) = delay {
             sleep(delay).await;
         }

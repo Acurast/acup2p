@@ -1,4 +1,4 @@
-pub(crate) mod peer_id {
+pub(super) mod peer_id {
     use libp2p::multiaddr::Protocol;
     use libp2p::{Multiaddr, PeerId};
 
@@ -17,11 +17,11 @@ pub(crate) mod peer_id {
     }
 }
 
-pub(crate) mod ed25519 {
+pub(super) mod ed25519 {
     use crate::types::result::Result;
     use libp2p::identity;
 
-    pub(crate) fn generate(seed: [u8; 32]) -> Result<identity::Keypair> {
+    pub fn generate(seed: [u8; 32]) -> Result<identity::Keypair> {
         Ok(identity::Keypair::ed25519_from_bytes(seed)?)
     }
 }

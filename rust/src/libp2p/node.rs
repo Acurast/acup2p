@@ -6,7 +6,7 @@ use libp2p::{identity, multiaddr, Multiaddr, PeerId};
 use crate::base;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum NodeId {
+pub(super) enum NodeId {
     Peer(PeerId),
     Addr(Multiaddr),
 }
@@ -21,7 +21,7 @@ impl fmt::Display for NodeId {
 }
 
 #[derive(Debug)]
-pub(crate) enum ParseError {
+pub(super) enum ParseError {
     Peer(identity::ParseError),
     Addr(multiaddr::Error),
 }

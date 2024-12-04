@@ -10,7 +10,7 @@ use super::super::node::NodeId;
 use super::NodeInner;
 
 impl NodeInner {
-    pub(crate) async fn dial_node(&mut self, node: NodeId) -> Result<(), Error> {
+    pub(super) async fn dial_node(&mut self, node: NodeId) -> Result<(), Error> {
         if let NodeId::Peer(peer_id) = node {
             if self.relays.contains_key(&peer_id) {
                 self.dial_relay(&peer_id).await;
@@ -43,7 +43,7 @@ impl NodeInner {
         Ok(())
     }
 
-    pub(crate) async fn dial_relays(&mut self) {
+    pub(super) async fn dial_relays(&mut self) {
         if self.relays.len() <= 0 {
             return;
         }
@@ -98,7 +98,7 @@ impl NodeInner {
         }
     }
 
-    pub(crate) fn disconnect(&mut self, node: NodeId) {
+    pub(super) fn disconnect(&mut self, node: NodeId) {
         match node {
             NodeId::Peer(peer_id) => {
                 self.disconnect_peer(peer_id);
@@ -113,11 +113,11 @@ impl NodeInner {
         }
     }
 
-    pub(crate) fn disconnect_peer(&mut self, peer_id: PeerId) {
+    pub(super) fn disconnect_peer(&mut self, peer_id: PeerId) {
         let _ = self.swarm.disconnect_peer_id(peer_id);
     }
 
-    pub(crate) fn disconnect_all(&mut self) {
+    pub(super) fn disconnect_all(&mut self) {
         for peer_id in self.swarm.connected_peers().cloned().collect::<Vec<_>>() {
             self.disconnect_peer(peer_id);
         }
@@ -125,7 +125,7 @@ impl NodeInner {
 }
 
 #[derive(Debug)]
-pub(crate) enum Error {
+pub(super) enum Error {
     NodeUnreachable(NodeId, DialError),
 }
 

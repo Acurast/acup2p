@@ -13,17 +13,28 @@ use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 use crate::base;
-use crate::base::types::{Event, NodeId, OutboundProtocolMessage};
+use crate::base::types::{Event, OutboundProtocolMessage};
 use crate::types::Result;
 
-use self::inner::intent::Intent;
 use self::inner::NodeInner;
+use self::node::NodeId;
 
 const DEFAULT_CHANNEL_BUFFER: u8 = 255;
 
 pub struct Node {
     intent_tx: Sender<Intent>,
     event_rx: Receiver<Event>,
+}
+
+#[derive(Debug, Clone)]
+pub(self) enum Intent {
+    DirectMessage {
+        peer: NodeId,
+        message: OutboundProtocolMessage,
+    },
+    Dial(NodeId),
+    Disconnect(NodeId),
+    Close,
 }
 
 impl Stream for Node {
@@ -54,7 +65,7 @@ impl base::Node for Node {
         })
     }
 
-    async fn connect(&mut self, nodes: &[NodeId]) -> Result<()> {
+    async fn connect(&mut self, nodes: &[base::types::NodeId]) -> Result<()> {
         for node in nodes {
             self.intent_tx.send(Intent::Dial(node.try_into()?)).await?;
         }
@@ -62,7 +73,7 @@ impl base::Node for Node {
         Ok(())
     }
 
-    async fn disconnect(&mut self, nodes: &[NodeId]) -> Result<()> {
+    async fn disconnect(&mut self, nodes: &[base::types::NodeId]) -> Result<()> {
         for node in nodes {
             self.intent_tx
                 .send(Intent::Disconnect(node.try_into()?))
@@ -75,7 +86,7 @@ impl base::Node for Node {
     async fn send_message(
         &mut self,
         message: OutboundProtocolMessage,
-        nodes: &[NodeId],
+        nodes: &[base::types::NodeId],
     ) -> Result<()> {
         for node in nodes {
             self.intent_tx

@@ -22,7 +22,7 @@ use crate::libp2p::message;
 const IDENTIFY_PROTOCOL: &str = "/ipfs/id/1.0.0";
 
 #[derive(Debug)]
-pub(crate) enum Error {
+pub(super) enum Error {
     Mdns(io::Error),
     Messages((String, InvalidProtocol)),
 }
@@ -43,7 +43,7 @@ impl fmt::Display for Error {
 impl error::Error for Error {}
 
 #[derive(NetworkBehaviour)]
-pub(crate) struct Behaviour {
+pub(super) struct Behaviour {
     pub mdns: mdns::tokio::Behaviour,
     pub relay: relay::client::Behaviour,
     pub identify: identify::Behaviour,
@@ -89,7 +89,7 @@ impl Behaviour {
     }
 }
 
-pub(crate) struct MultiBehaviour<K, B>
+pub(super) struct MultiBehaviour<K, B>
 where
     B: NetworkBehaviour,
 {

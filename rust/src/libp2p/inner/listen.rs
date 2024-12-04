@@ -6,23 +6,36 @@ use libp2p::{Multiaddr, PeerId, TransportError};
 
 use super::NodeInner;
 
-pub(crate) const EXPECTED_ADDRS_PER_LISTENER: u8 = 2; // loopback + local network
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub(super) enum ListenerType {
+    TCP,
+    QUIC,
+    WebSocket,
+    CircuitRelay(PeerId),
+}
 
 impl NodeInner {
-    pub(crate) fn listen(&mut self) -> Result<(), Error> {
+    pub(super) fn listen(&mut self) -> Result<(), Error> {
+        self.required_listeners.insert(ListenerType::TCP);
+        self.required_listeners.insert(ListenerType::QUIC);
+        self.required_listeners.insert(ListenerType::WebSocket);
+
         if let Err(e) = self.listen_on_tcp() {
             tracing::debug!(error=%e, "TCP listener not established");
+            self.required_listeners.remove(&ListenerType::TCP);
         }
 
         if let Err(e) = self.listen_on_quic() {
             tracing::debug!(error=%e, "QUIC listener not established");
+            self.required_listeners.remove(&ListenerType::QUIC);
         }
 
         if let Err(e) = self.listen_on_websocket() {
             tracing::debug!(error=%e, "WebSocket listener not established");
+            self.required_listeners.remove(&ListenerType::WebSocket);
         }
 
-        if self.listeners.is_empty() {
+        if self.tracked_listeners.is_empty() {
             return Err(Error::NoListeners);
         }
 
@@ -33,7 +46,7 @@ impl NodeInner {
         let addr_ipv4 = Multiaddr::from(Ipv4Addr::UNSPECIFIED).with(Protocol::Tcp(0));
 
         let listener = self.swarm.listen_on(addr_ipv4)?;
-        self.listeners.insert(listener, 0);
+        self.tracked_listeners.insert(listener, ListenerType::TCP);
 
         Ok(())
     }
@@ -44,7 +57,7 @@ impl NodeInner {
             .with(Protocol::QuicV1);
 
         let listener = self.swarm.listen_on(addr_ipv4)?;
-        self.listeners.insert(listener, 0);
+        self.tracked_listeners.insert(listener, ListenerType::QUIC);
 
         Ok(())
     }
@@ -55,12 +68,13 @@ impl NodeInner {
             .with(Protocol::Ws("/".into()));
 
         let listener = self.swarm.listen_on(addr_ipv4)?;
-        self.listeners.insert(listener, 0);
+        self.tracked_listeners
+            .insert(listener, ListenerType::WebSocket);
 
         Ok(())
     }
 
-    pub(crate) fn listen_on_relay(&mut self, peer_id: &PeerId) -> Result<(), Error> {
+    pub(super) fn listen_on_relay(&mut self, peer_id: &PeerId) -> Result<(), Error> {
         let relay = self
             .relays
             .get_mut(peer_id)
@@ -70,20 +84,27 @@ impl NodeInner {
             return Err(Error::RelayDisconnected(*peer_id));
         }
 
-        if let Err(e) = self
+        match self
             .swarm
             .listen_on(relay.clone().with(Protocol::P2pCircuit))
         {
-            let addr: &Multiaddr = &relay;
-            return Err(Error::NoRelayListener(addr.clone(), e));
-        };
+            Ok(listener_id) => {
+                self.tracked_listeners
+                    .insert(listener_id, ListenerType::CircuitRelay(peer_id.clone()));
+            }
+            Err(e) => {
+                let addr: &Multiaddr = &relay;
+                return Err(Error::NoRelayListener(addr.clone(), e));
+            }
+        }
+
         relay.set_pending_reservation();
 
         Ok(())
     }
 
-    pub(crate) fn stop_listeners(&mut self) {
-        for listener_id in self.listeners.keys() {
+    pub(super) fn stop_listeners(&mut self) {
+        for listener_id in self.listeners.iter() {
             let _ = self.swarm.remove_listener(listener_id.clone());
         }
 
@@ -92,7 +113,7 @@ impl NodeInner {
 }
 
 #[derive(Debug)]
-pub(crate) enum Error {
+pub(super) enum Error {
     NoListeners,
 
     NoRelay(PeerId),
@@ -109,7 +130,7 @@ impl fmt::Display for Error {
             Error::NoRelayListener(addr, err) => {
                 write!(
                     f,
-                    "Failed to establish circut relay at address {addr}: {err}"
+                    "Failed to establish circuit relay at address {addr}: {err}"
                 )
             }
         }

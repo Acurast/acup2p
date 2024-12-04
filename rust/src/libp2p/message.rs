@@ -1,8 +1,8 @@
 use libp2p_request_response as request_response;
 
-pub(crate) type Behaviour = request_response::Behaviour<codec::Codec>;
+pub(super) type Behaviour = request_response::Behaviour<codec::Codec>;
 
-pub(crate) mod codec {
+pub(super) mod codec {
     use crate::libp2p::message::request_response;
     use std::io;
 
@@ -10,7 +10,7 @@ pub(crate) mod codec {
     use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
     use libp2p::StreamProtocol;
 
-    pub(crate) struct Codec {}
+    pub struct Codec {}
 
     const REQUEST_SIZE_MAXIMUM: u64 = 1024 * 1024;
     const RESPONSE_SIZE_MAXIMUM: u64 = 10 * 1024 * 1024;
