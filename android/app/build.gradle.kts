@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.support.listFilesOrdered
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
@@ -14,7 +16,7 @@ object Library {
 android {
     namespace = Library.groupId
     compileSdk = 35
-    ndkVersion = "27.2.12479018"
+    ndkVersion = sdkDirectory.resolve("ndk").listFilesOrdered().last().name
 
     defaultConfig {
         minSdk = 26

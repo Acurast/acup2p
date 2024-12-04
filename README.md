@@ -1,2 +1,1 @@
-# Acurast P2P Node
----
+# acup2p
