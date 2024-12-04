@@ -97,7 +97,10 @@ pub trait Handler: Send + Sync + Debug {
 
 impl dyn Handler {
     async fn on_error(&self, error: Box<dyn Error + Send + Sync>) {
-        self.on_event(Event::Error(error.to_string())).await;
+        self.on_event(Event::Error {
+            cause: error.to_string(),
+        })
+        .await;
     }
 }
 

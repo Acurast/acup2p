@@ -1882,46 +1882,46 @@ public object FfiConverterTypeOutboundProtocolResponse: FfiConverterRustBuffer<O
 sealed class Event {
     
     data class ListeningOn(
-        val v1: kotlin.String) : Event() {
+        val `address`: kotlin.String) : Event() {
         companion object
     }
     
     data class Connected(
-        val v1: NodeId) : Event() {
+        val `node`: NodeId) : Event() {
         companion object
     }
     
     data class Disconnected(
-        val v1: NodeId) : Event() {
+        val `node`: NodeId) : Event() {
         companion object
     }
     
     data class InboundRequest(
-        val v1: NodeId, 
-        val v2: InboundProtocolRequest) : Event() {
+        val `sender`: NodeId, 
+        val `request`: InboundProtocolRequest) : Event() {
         companion object
     }
     
     data class InboundResponse(
-        val v1: NodeId, 
-        val v2: InboundProtocolResponse) : Event() {
+        val `sender`: NodeId, 
+        val `response`: InboundProtocolResponse) : Event() {
         companion object
     }
     
     data class OutboundRequest(
-        val v1: NodeId, 
-        val v2: OutboundProtocolRequest) : Event() {
+        val `receiver`: NodeId, 
+        val `request`: OutboundProtocolRequest) : Event() {
         companion object
     }
     
     data class OutboundResponse(
-        val v1: NodeId, 
-        val v2: OutboundProtocolResponse) : Event() {
+        val `receiver`: NodeId, 
+        val `response`: OutboundProtocolResponse) : Event() {
         companion object
     }
     
     data class Error(
-        val v1: kotlin.String) : Event() {
+        val `cause`: kotlin.String) : Event() {
         companion object
     }
     
@@ -1973,60 +1973,60 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterString.allocationSize(value.v1)
+                + FfiConverterString.allocationSize(value.`address`)
             )
         }
         is Event.Connected -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeNodeId.allocationSize(value.v1)
+                + FfiConverterTypeNodeId.allocationSize(value.`node`)
             )
         }
         is Event.Disconnected -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeNodeId.allocationSize(value.v1)
+                + FfiConverterTypeNodeId.allocationSize(value.`node`)
             )
         }
         is Event.InboundRequest -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeNodeId.allocationSize(value.v1)
-                + FfiConverterTypeInboundProtocolRequest.allocationSize(value.v2)
+                + FfiConverterTypeNodeId.allocationSize(value.`sender`)
+                + FfiConverterTypeInboundProtocolRequest.allocationSize(value.`request`)
             )
         }
         is Event.InboundResponse -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeNodeId.allocationSize(value.v1)
-                + FfiConverterTypeInboundProtocolResponse.allocationSize(value.v2)
+                + FfiConverterTypeNodeId.allocationSize(value.`sender`)
+                + FfiConverterTypeInboundProtocolResponse.allocationSize(value.`response`)
             )
         }
         is Event.OutboundRequest -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeNodeId.allocationSize(value.v1)
-                + FfiConverterTypeOutboundProtocolRequest.allocationSize(value.v2)
+                + FfiConverterTypeNodeId.allocationSize(value.`receiver`)
+                + FfiConverterTypeOutboundProtocolRequest.allocationSize(value.`request`)
             )
         }
         is Event.OutboundResponse -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeNodeId.allocationSize(value.v1)
-                + FfiConverterTypeOutboundProtocolResponse.allocationSize(value.v2)
+                + FfiConverterTypeNodeId.allocationSize(value.`receiver`)
+                + FfiConverterTypeOutboundProtocolResponse.allocationSize(value.`response`)
             )
         }
         is Event.Error -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterString.allocationSize(value.v1)
+                + FfiConverterString.allocationSize(value.`cause`)
             )
         }
     }
@@ -2035,46 +2035,46 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
         when(value) {
             is Event.ListeningOn -> {
                 buf.putInt(1)
-                FfiConverterString.write(value.v1, buf)
+                FfiConverterString.write(value.`address`, buf)
                 Unit
             }
             is Event.Connected -> {
                 buf.putInt(2)
-                FfiConverterTypeNodeId.write(value.v1, buf)
+                FfiConverterTypeNodeId.write(value.`node`, buf)
                 Unit
             }
             is Event.Disconnected -> {
                 buf.putInt(3)
-                FfiConverterTypeNodeId.write(value.v1, buf)
+                FfiConverterTypeNodeId.write(value.`node`, buf)
                 Unit
             }
             is Event.InboundRequest -> {
                 buf.putInt(4)
-                FfiConverterTypeNodeId.write(value.v1, buf)
-                FfiConverterTypeInboundProtocolRequest.write(value.v2, buf)
+                FfiConverterTypeNodeId.write(value.`sender`, buf)
+                FfiConverterTypeInboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.InboundResponse -> {
                 buf.putInt(5)
-                FfiConverterTypeNodeId.write(value.v1, buf)
-                FfiConverterTypeInboundProtocolResponse.write(value.v2, buf)
+                FfiConverterTypeNodeId.write(value.`sender`, buf)
+                FfiConverterTypeInboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
             is Event.OutboundRequest -> {
                 buf.putInt(6)
-                FfiConverterTypeNodeId.write(value.v1, buf)
-                FfiConverterTypeOutboundProtocolRequest.write(value.v2, buf)
+                FfiConverterTypeNodeId.write(value.`receiver`, buf)
+                FfiConverterTypeOutboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.OutboundResponse -> {
                 buf.putInt(7)
-                FfiConverterTypeNodeId.write(value.v1, buf)
-                FfiConverterTypeOutboundProtocolResponse.write(value.v2, buf)
+                FfiConverterTypeNodeId.write(value.`receiver`, buf)
+                FfiConverterTypeOutboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
             is Event.Error -> {
                 buf.putInt(8)
-                FfiConverterString.write(value.v1, buf)
+                FfiConverterString.write(value.`cause`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -2095,6 +2095,11 @@ sealed class Identity {
         companion object
     }
     
+    data class Keypair(
+        val v1: SecretKey) : Identity() {
+        companion object
+    }
+    
 
     
     companion object
@@ -2109,6 +2114,9 @@ public object FfiConverterTypeIdentity : FfiConverterRustBuffer<Identity>{
             1 -> Identity.Random
             2 -> Identity.Seed(
                 FfiConverterByteArray.read(buf),
+                )
+            3 -> Identity.Keypair(
+                FfiConverterTypeSecretKey.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
@@ -2128,6 +2136,13 @@ public object FfiConverterTypeIdentity : FfiConverterRustBuffer<Identity>{
                 + FfiConverterByteArray.allocationSize(value.v1)
             )
         }
+        is Identity.Keypair -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeSecretKey.allocationSize(value.v1)
+            )
+        }
     }
 
     override fun write(value: Identity, buf: ByteBuffer) {
@@ -2139,6 +2154,11 @@ public object FfiConverterTypeIdentity : FfiConverterRustBuffer<Identity>{
             is Identity.Seed -> {
                 buf.putInt(2)
                 FfiConverterByteArray.write(value.v1, buf)
+                Unit
+            }
+            is Identity.Keypair -> {
+                buf.putInt(3)
+                FfiConverterTypeSecretKey.write(value.v1, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -2294,12 +2314,12 @@ public object FfiConverterTypeLogLevel: FfiConverterRustBuffer<LogLevel> {
 sealed class NodeId {
     
     data class Peer(
-        val v1: kotlin.String) : NodeId() {
+        val `peerId`: kotlin.String) : NodeId() {
         companion object
     }
     
     data class Address(
-        val v1: kotlin.String) : NodeId() {
+        val `address`: kotlin.String) : NodeId() {
         companion object
     }
     
@@ -2329,14 +2349,14 @@ public object FfiConverterTypeNodeId : FfiConverterRustBuffer<NodeId>{
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterString.allocationSize(value.v1)
+                + FfiConverterString.allocationSize(value.`peerId`)
             )
         }
         is NodeId.Address -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterString.allocationSize(value.v1)
+                + FfiConverterString.allocationSize(value.`address`)
             )
         }
     }
@@ -2345,12 +2365,12 @@ public object FfiConverterTypeNodeId : FfiConverterRustBuffer<NodeId>{
         when(value) {
             is NodeId.Peer -> {
                 buf.putInt(1)
-                FfiConverterString.write(value.v1, buf)
+                FfiConverterString.write(value.`peerId`, buf)
                 Unit
             }
             is NodeId.Address -> {
                 buf.putInt(2)
-                FfiConverterString.write(value.v1, buf)
+                FfiConverterString.write(value.`address`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -2499,6 +2519,56 @@ public object FfiConverterTypeReconnectPolicy : FfiConverterRustBuffer<Reconnect
             }
             is ReconnectPolicy.Always -> {
                 buf.putInt(3)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
+sealed class SecretKey {
+    
+    data class Ed25519(
+        val v1: kotlin.ByteArray) : SecretKey() {
+        companion object
+    }
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSecretKey : FfiConverterRustBuffer<SecretKey>{
+    override fun read(buf: ByteBuffer): SecretKey {
+        return when(buf.getInt()) {
+            1 -> SecretKey.Ed25519(
+                FfiConverterByteArray.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: SecretKey) = when(value) {
+        is SecretKey.Ed25519 -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterByteArray.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: SecretKey, buf: ByteBuffer) {
+        when(value) {
+            is SecretKey.Ed25519 -> {
+                buf.putInt(1)
+                FfiConverterByteArray.write(value.v1, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
