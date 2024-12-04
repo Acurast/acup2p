@@ -2,7 +2,14 @@ use std::fmt;
 
 macro_rules! protocol_message {
     ($name:ident) => {
-        #[derive(uniffi::Record, Debug, Clone)]
+        #[cfg_attr(
+            any(target_os = "android", target_os = "ios"),
+            derive(uniffi::Record, Debug, Clone)
+        )]
+        #[cfg_attr(
+            not(any(target_os = "android", target_os = "ios")),
+            derive(Debug, Clone)
+        )]
         pub struct $name {
             pub protocol: String,
             pub bytes: Vec<u8>,
@@ -21,7 +28,14 @@ macro_rules! protocol_message {
         }
     };
     ($name:ident { id: $id_type:ty }) => {
-        #[derive(uniffi::Record, Debug, Clone)]
+        #[cfg_attr(
+            any(target_os = "android", target_os = "ios"),
+            derive(uniffi::Record, Debug, Clone)
+        )]
+        #[cfg_attr(
+            not(any(target_os = "android", target_os = "ios")),
+            derive(Debug, Clone)
+        )]
         pub struct $name {
             pub protocol: String,
             pub bytes: Vec<u8>,
@@ -58,7 +72,14 @@ protocol_message!(OutboundProtocolResponse {
     id: OutboundResponseId
 });
 
-#[derive(Debug, Clone, uniffi::Enum)]
+#[cfg_attr(
+    any(target_os = "android", target_os = "ios"),
+    derive(uniffi::Enum, Debug, Clone)
+)]
+#[cfg_attr(
+    not(any(target_os = "android", target_os = "ios")),
+    derive(Debug, Clone)
+)]
 pub enum OutboundProtocolMessage {
     Request(OutboundProtocolRequest),
     Response(OutboundProtocolResponse),

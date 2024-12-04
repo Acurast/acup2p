@@ -1,6 +1,13 @@
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, uniffi::Enum)]
+#[cfg_attr(
+    any(target_os = "android", target_os = "ios"),
+    derive(uniffi::Enum, Debug, Clone, PartialEq, Eq, Hash)
+)]
+#[cfg_attr(
+    not(any(target_os = "android", target_os = "ios")),
+    derive(Debug, Clone, PartialEq, Eq, Hash)
+)]
 pub enum NodeId {
     Peer(String),
     Address(String),

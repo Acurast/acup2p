@@ -48,11 +48,18 @@ impl NodeInner {
                     self.notify_listeners_ready().await;
                 }
             }
-            SwarmEvent::ListenerClosed { listener_id, reason, .. } => {
-                if let Some(ListenerType::CircuitRelay(peer_id)) = self.tracked_listeners.remove(&listener_id) {
+            SwarmEvent::ListenerClosed {
+                listener_id,
+                reason,
+                ..
+            } => {
+                if let Some(ListenerType::CircuitRelay(peer_id)) =
+                    self.tracked_listeners.remove(&listener_id)
+                {
                     if let Err(e) = reason {
                         tracing::info!(error=%e, "circuit relay closed unexpectedly");
-                        self.maybe_reconnect_relay(peer_id, Some(Duration::from_secs(15))).await;
+                        self.maybe_reconnect_relay(peer_id, Some(Duration::from_secs(15)))
+                            .await;
                     }
                 }
             }
