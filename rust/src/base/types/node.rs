@@ -9,15 +9,15 @@ use std::fmt;
     derive(Debug, Clone, PartialEq, Eq, Hash)
 )]
 pub enum NodeId {
-    Peer(String),
-    Address(String),
+    Peer { peer_id: String },
+    Address { address: String },
 }
 
 impl fmt::Display for NodeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NodeId::Peer(peer_id) => write!(f, "Peer({peer_id})"),
-            NodeId::Address(addr) => write!(f, "Address({addr})"),
+            NodeId::Peer { peer_id } => write!(f, "Peer({peer_id})"),
+            NodeId::Address { address } => write!(f, "Address({address})"),
         }
     }
 }

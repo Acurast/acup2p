@@ -14,12 +14,14 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import uniffi.acup2p.Config
 import uniffi.acup2p.Event
+import uniffi.acup2p.Identity
 import uniffi.acup2p.InboundProtocolRequest
 import uniffi.acup2p.Intent
 import uniffi.acup2p.NodeId
 import uniffi.acup2p.OutboundProtocolMessage
 import uniffi.acup2p.OutboundProtocolRequest
 import uniffi.acup2p.OutboundProtocolResponse
+import uniffi.acup2p.SecretKey
 import uniffi.acup2p.bind
 import uniffi.acup2p.defaultConfig
 import kotlin.coroutines.CoroutineContext
@@ -90,6 +92,9 @@ public fun CoroutineScope.Acup2p(config: Config = Config.Default): Acup2p = Acup
 
 public val Config.Companion.Default: Config
     get() = defaultConfig()
+
+public fun Identity.Companion.Ed25519(secretKey: ByteArray): Identity.Keypair =
+    Identity.Keypair(SecretKey.Ed25519(secretKey))
 
 public fun OutboundProtocolResponse.Companion.fromRequest(request: InboundProtocolRequest, bytes: ByteArray): OutboundProtocolResponse =
     OutboundProtocolResponse(request.protocol, bytes, request.id)

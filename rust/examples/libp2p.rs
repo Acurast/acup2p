@@ -53,7 +53,12 @@ where
         Ok(Command::Close) => {
             if let Err(e) = node.close().await {
                 println!("error: {e:?}")
-            };
+            }
+        }
+        Ok(Command::Dial { node: peer }) => {
+            if let Err(e) = node.connect(&[peer]).await {
+                println!("error: {e:?}")
+            }
         }
         Ok(Command::Echo {
             node: receiver,
@@ -65,7 +70,7 @@ where
             );
             if let Err(e) = node.send_message(request, &[receiver]).await {
                 println!("error: {e:?}")
-            };
+            }
         }
         _ => {}
     }
@@ -76,21 +81,21 @@ where
     T: Node,
 {
     match event {
-        Event::ListeningOn(addr) => {
-            println!("listening on {addr}");
+        Event::ListeningOn { address } => {
+            println!("listening on {address}");
         }
-        Event::Connected(addr) => {
-            println!("{addr:?} connected");
+        Event::Connected { node } => {
+            println!("{node:?} connected");
         }
-        Event::Disconnected(addr) => {
-            println!("{addr:?} disconnected");
+        Event::Disconnected { node } => {
+            println!("{node:?} disconnected");
         }
-        Event::InboundRequest(sender, message) => match message.protocol.as_str() {
-            PROTOCOL_ECHO => match str::from_utf8(&message.bytes) {
+        Event::InboundRequest { sender, request } => match request.protocol.as_str() {
+            PROTOCOL_ECHO => match str::from_utf8(&request.bytes) {
                 Ok(text) => {
                     println!("echo request from {sender:?} ({text})");
-                    let response = message.bytes.clone();
-                    let response = OutboundProtocolMessage::new_response(message, response);
+                    let response = request.bytes.clone();
+                    let response = OutboundProtocolMessage::new_response(request, response);
                     if let Err(err) = node.send_message(response, &[sender]).await {
                         println!("error: {err:?}");
                     };
@@ -100,11 +105,11 @@ where
                 }
             },
             _ => {
-                println!("message from {sender:?} ({})", message.protocol)
+                println!("message from {sender:?} ({})", request.protocol)
             }
         },
-        Event::InboundResponse(sender, message) => match message.protocol.as_str() {
-            PROTOCOL_ECHO => match str::from_utf8(&message.bytes) {
+        Event::InboundResponse { sender, response } => match response.protocol.as_str() {
+            PROTOCOL_ECHO => match str::from_utf8(&response.bytes) {
                 Ok(text) => {
                     println!("echo response from {sender:?} ({text})");
                 }
@@ -113,11 +118,11 @@ where
                 }
             },
             _ => {
-                println!("message from {sender:?} ({})", message.protocol)
+                println!("message from {sender:?} ({})", response.protocol)
             }
         },
-        Event::OutboundRequest(receiver, message) => match message.protocol.as_str() {
-            PROTOCOL_ECHO => match str::from_utf8(&message.bytes) {
+        Event::OutboundRequest { receiver, request } => match request.protocol.as_str() {
+            PROTOCOL_ECHO => match str::from_utf8(&request.bytes) {
                 Ok(text) => {
                     println!("echo request sent to {receiver:?} ({text})");
                 }
@@ -126,11 +131,11 @@ where
                 }
             },
             _ => {
-                println!("message to {receiver:?} ({})", message.protocol)
+                println!("message to {receiver:?} ({})", request.protocol)
             }
         },
-        Event::OutboundResponse(receiver, message) => match message.protocol.as_str() {
-            PROTOCOL_ECHO => match str::from_utf8(&message.bytes) {
+        Event::OutboundResponse { receiver, response } => match response.protocol.as_str() {
+            PROTOCOL_ECHO => match str::from_utf8(&response.bytes) {
                 Ok(text) => {
                     println!("echo response sent to {receiver:?} ({text})");
                 }
@@ -139,11 +144,11 @@ where
                 }
             },
             _ => {
-                println!("message to {receiver:?} ({})", message.protocol)
+                println!("message to {receiver:?} ({})", response.protocol)
             }
         },
-        Event::Error(msg) => {
-            println!("error: {msg}")
+        Event::Error { cause } => {
+            println!("error: {cause}")
         }
     }
 }
@@ -151,6 +156,7 @@ where
 #[derive(Debug)]
 enum Command {
     Close,
+    Dial { node: NodeId },
     Echo { node: NodeId, message: String },
 }
 
@@ -158,22 +164,27 @@ impl TryFrom<String> for Command {
     type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
+        fn node_parser(input: &str) -> IResult<&str, NodeId> {
+            alt((
+                map(
+                    delimited(tag("peer("), take_until(")"), tag(")")),
+                    |peer_id: &str| NodeId::Peer { peer_id: peer_id.to_string() },
+                ),
+                map(
+                    delimited(tag("addr("), take_until(")"), tag(")")),
+                    |addr: &str| NodeId::Address { address: addr.to_string() },
+                ),
+            ))(input)
+        }
+
         if value.starts_with("close") {
             return Ok(Command::Close);
-        } else if value.starts_with("echo") {
-            fn node_parser(input: &str) -> IResult<&str, NodeId> {
-                alt((
-                    map(
-                        delimited(tag("peer("), take_until(")"), tag(")")),
-                        |peer_id: &str| NodeId::Peer(peer_id.to_string()),
-                    ),
-                    map(
-                        delimited(tag("addr("), take_until(")"), tag(")")),
-                        |addr: &str| NodeId::Address(addr.to_string()),
-                    ),
-                ))(input)
-            }
+        } else if value.starts_with("dial") {
+            let (_, node) =
+                preceded(tag("dial:"), node_parser)(value.as_str()).map_err(|e| e.to_string())?;
 
+            return Ok(Command::Dial { node });
+        } else if value.starts_with("echo") {
             let (_, (node, message)) = preceded(
                 tag("echo:"),
                 separated_pair(node_parser, tag(":"), take_until("\n")),

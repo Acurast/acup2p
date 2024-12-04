@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 
 use futures::StreamExt;
 use libp2p::core::transport::ListenerId;
+use libp2p::identity::Keypair;
 use libp2p::{noise, tcp, tls, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_request_response::ResponseChannel;
 use tokio::select;
@@ -59,8 +60,17 @@ impl NodeInner {
         let security_upgrade = (tls::Config::new, noise::Config::new);
 
         let builder = match config.identity {
-            Identity::Seed(seed) => SwarmBuilder::with_existing_identity(ed25519::generate(seed)?),
             Identity::Random => SwarmBuilder::with_new_identity(),
+            Identity::Seed(seed) => SwarmBuilder::with_existing_identity(ed25519::generate(seed)?),
+            Identity::Keypair(secret_key) => {
+                let keypair = match secret_key {
+                    base::types::SecretKey::Ed25519(secret_key) => {
+                        Keypair::ed25519_from_bytes(secret_key)?
+                    }
+                };
+
+                SwarmBuilder::with_existing_identity(keypair)
+            }
         };
 
         let builder = builder

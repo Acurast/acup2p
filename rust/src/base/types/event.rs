@@ -16,39 +16,59 @@ use super::node::NodeId;
     derive(Debug, Clone)
 )]
 pub enum Event {
-    ListeningOn(String),
+    ListeningOn {
+        address: String,
+    },
 
-    Connected(NodeId),
-    Disconnected(NodeId),
+    Connected {
+        node: NodeId,
+    },
+    Disconnected {
+        node: NodeId,
+    },
 
-    InboundRequest(NodeId, InboundProtocolRequest),
-    InboundResponse(NodeId, InboundProtocolResponse),
+    InboundRequest {
+        sender: NodeId,
+        request: InboundProtocolRequest,
+    },
+    InboundResponse {
+        sender: NodeId,
+        response: InboundProtocolResponse,
+    },
 
-    OutboundRequest(NodeId, OutboundProtocolRequest),
-    OutboundResponse(NodeId, OutboundProtocolResponse),
+    OutboundRequest {
+        receiver: NodeId,
+        request: OutboundProtocolRequest,
+    },
+    OutboundResponse {
+        receiver: NodeId,
+        response: OutboundProtocolResponse,
+    },
 
-    Error(String),
+    Error {
+        cause: String,
+    },
 }
 
 impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Event::ListeningOn(addr) => write!(f, "Listening on address {addr}"),
-            Event::Connected(id) => write!(f, "Node {id} connected"),
-            Event::Disconnected(id) => write!(f, "Node {id} disconnected"),
-            Event::InboundRequest(id, message) => {
-                write!(f, "Received a request from {id}: {message}")
+            Event::ListeningOn { address } => write!(f, "Listening on address {address}"),
+            Event::Connected { node } => write!(f, "Node {node} connected"),
+            Event::Disconnected { node } => write!(f, "Node {node} disconnected"),
+            Event::InboundRequest { sender, request } => {
+                write!(f, "Received a request from {sender}: {request}")
             }
-            Event::InboundResponse(id, message) => {
-                write!(f, "Received a response from {id}: {message}")
+            Event::InboundResponse { sender, response } => {
+                write!(f, "Received a response from {sender}: {response}")
             }
-            Event::OutboundRequest(id, message) => {
-                write!(f, "Sent a request to {id}: {message}")
+            Event::OutboundRequest { receiver, request } => {
+                write!(f, "Sent a request to {receiver}: {request}")
             }
-            Event::OutboundResponse(id, message) => {
-                write!(f, "Sent a response to {id}: {message}")
+            Event::OutboundResponse { receiver, response } => {
+                write!(f, "Sent a response to {receiver}: {response}")
             }
-            Event::Error(e) => write!(f, "Error: {e}"),
+            Event::Error { cause } => write!(f, "Error: {cause}"),
         }
     }
 }

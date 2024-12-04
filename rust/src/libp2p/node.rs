@@ -42,11 +42,11 @@ impl TryFrom<&base::types::NodeId> for NodeId {
 
     fn try_from(value: &base::types::NodeId) -> std::result::Result<Self, Self::Error> {
         Ok(match value {
-            base::types::NodeId::Peer(peer_id) => {
+            base::types::NodeId::Peer { peer_id } => {
                 NodeId::Peer(peer_id.parse().map_err(|e| ParseError::Peer(e))?)
             }
-            base::types::NodeId::Address(addr) => {
-                NodeId::Addr(addr.parse().map_err(|e| ParseError::Addr(e))?)
+            base::types::NodeId::Address { address } => {
+                NodeId::Addr(address.parse().map_err(|e| ParseError::Addr(e))?)
             }
         })
     }
@@ -55,8 +55,8 @@ impl TryFrom<&base::types::NodeId> for NodeId {
 impl From<&NodeId> for base::types::NodeId {
     fn from(value: &NodeId) -> Self {
         match value {
-            NodeId::Peer(peer_id) => base::types::NodeId::Peer(peer_id.to_string()),
-            NodeId::Addr(multiaddr) => base::types::NodeId::Address(multiaddr.to_string()),
+            NodeId::Peer(peer_id) => base::types::NodeId::Peer { peer_id: peer_id.to_string() },
+            NodeId::Addr(multiaddr) => base::types::NodeId::Address { address: multiaddr.to_string() },
         }
     }
 }
