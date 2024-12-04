@@ -1,5 +1,7 @@
+#[cfg(any(target_os = "android", target_os = "ios"))]
 uniffi::setup_scaffolding!();
 
+#[cfg(any(target_os = "android", target_os = "ios"))]
 pub mod ffi;
 
 pub mod base;

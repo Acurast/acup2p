@@ -7,7 +7,14 @@ use super::message::{
 
 use super::node::NodeId;
 
-#[derive(Debug, Clone, uniffi::Enum)]
+#[cfg_attr(
+    any(target_os = "android", target_os = "ios"),
+    derive(uniffi::Enum, Debug, Clone)
+)]
+#[cfg_attr(
+    not(any(target_os = "android", target_os = "ios")),
+    derive(Debug, Clone)
+)]
 pub enum Event {
     ListeningOn(String),
 

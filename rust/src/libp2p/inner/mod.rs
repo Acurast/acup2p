@@ -10,7 +10,6 @@ use std::collections::{HashMap, HashSet};
 
 use futures::StreamExt;
 use libp2p::core::transport::ListenerId;
-use libp2p::dns::{ResolverConfig, ResolverOpts};
 use libp2p::{noise, tcp, tls, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder};
 use libp2p_request_response::ResponseChannel;
 use tokio::select;
@@ -64,17 +63,31 @@ impl NodeInner {
             Identity::Random => SwarmBuilder::with_new_identity(),
         };
 
-        let swarm = builder
+        let builder = builder
             .with_tokio()
             .with_tcp(
                 tcp::Config::default().nodelay(true),
                 security_upgrade,
                 yamux::Config::default,
             )?
-            .with_quic()
-            .with_dns_config(ResolverConfig::default(), ResolverOpts::default())
+            .with_quic();
+
+        #[cfg(any(target_os = "android"))]
+        let builder = builder
+            .with_dns_config(
+                libp2p::dns::ResolverConfig::default(),
+                libp2p::dns::ResolverOpts::default(),
+            )
+            .with_websocket_custom(security_upgrade, yamux::Config::default)
+            .await?;
+
+        #[cfg(not(any(target_os = "android")))]
+        let builder = builder
+            .with_dns()?
             .with_websocket(security_upgrade, yamux::Config::default)
-            .await?
+            .await?;
+
+        let swarm = builder
             .with_relay_client(security_upgrade, yamux::Config::default)?
             .with_behaviour(|key, relay_behaviour| {
                 Ok(Behaviour::new(key, relay_behaviour, &config.msg_protocols)?)
