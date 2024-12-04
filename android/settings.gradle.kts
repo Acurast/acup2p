@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Acurast P2P"
+rootProject.name = "acup2p"
 include(":app")
