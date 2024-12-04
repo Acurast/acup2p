@@ -6,7 +6,7 @@ pub(super) mod message;
 pub(super) mod send;
 pub(super) mod swarm_event;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use futures::StreamExt;
 use libp2p::core::transport::ListenerId;
@@ -24,8 +24,9 @@ use super::behaviour::Behaviour;
 use super::identity::ed25519;
 use super::node::NodeId;
 use super::relay::Relay;
+use super::Intent;
 
-use self::intent::Intent;
+use self::listen::ListenerType;
 use self::message::Message;
 
 const DEFAULT_CHANNEL_BUFFER: u8 = 255;
@@ -40,7 +41,10 @@ pub(super) struct NodeInner {
     is_active: bool,
     swarm: Swarm<Behaviour>,
 
-    listeners: HashMap<ListenerId, u8>,
+    required_listeners: HashSet<ListenerType>,
+    tracked_listeners: HashMap<ListenerId, ListenerType>,
+
+    listeners: HashSet<ListenerId>,
     relays: HashMap<PeerId, Relay>,
     response_channels: HashMap<(NodeId, String, String), ResponseChannel<Vec<u8>>>,
 
@@ -90,7 +94,10 @@ impl NodeInner {
             is_active: true,
             swarm,
 
-            listeners: HashMap::new(),
+            required_listeners: HashSet::new(),
+            tracked_listeners: HashMap::new(),
+
+            listeners: HashSet::new(),
             relays: config
                 .relay_addrs
                 .iter()

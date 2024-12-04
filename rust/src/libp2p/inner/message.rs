@@ -2,11 +2,11 @@ use core::fmt;
 
 use libp2p::PeerId;
 
-use super::intent::Intent;
+use super::super::Intent;
 use super::NodeInner;
 
 #[derive(Debug, Clone)]
-pub(crate) enum Message {
+pub(super) enum Message {
     ListenersReady,
     RelayConnected(PeerId),
     Intent(Intent),
@@ -26,7 +26,7 @@ impl fmt::Display for Message {
 }
 
 impl NodeInner {
-    pub(crate) async fn on_self_message(&mut self, event: Message) {
+    pub(super) async fn on_self_message(&mut self, event: Message) {
         match event {
             Message::ListenersReady => {
                 self.dial_relays().await;
@@ -42,16 +42,17 @@ impl NodeInner {
         }
     }
 
-    pub(crate) async fn notify_listeners_ready(&mut self) {
+    pub(super) async fn notify_listeners_ready(&mut self) {
         self.send_self_message(Message::ListenersReady).await;
     }
 
-    pub(crate) async fn notify_relay_connected(&mut self, peer_id: PeerId) {
+    pub(super) async fn notify_relay_connected(&mut self, peer_id: PeerId) {
         self.send_self_message(Message::RelayConnected(peer_id))
             .await;
     }
 
-    pub(crate) async fn send_self_message(&mut self, message: Message) {
+    pub(super) async fn send_self_message(&mut self, message: Message) {
+        tracing::debug!("{message}");
         if let Err(e) = self.self_msg_tx.send(message.clone()).await {
             tracing::debug!(%message, error=%e, "failed to send the message due to an error");
         }

@@ -10,7 +10,7 @@ use super::super::node::NodeId;
 use super::NodeInner;
 
 impl NodeInner {
-    pub(crate) async fn send_direct_message(
+    pub(super) async fn send_direct_message(
         &mut self,
         node: NodeId,
         message: OutboundProtocolMessage,
@@ -82,7 +82,7 @@ impl NodeInner {
 }
 
 #[derive(Debug)]
-pub(crate) enum Error {
+pub(super) enum Error {
     MessageProtocolNotFound(String),
 
     InvalidAddress(Multiaddr),

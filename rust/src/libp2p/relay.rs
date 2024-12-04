@@ -4,12 +4,12 @@ use libp2p::Multiaddr;
 
 use crate::types::ReconnectPolicy;
 
-pub(crate) struct Relay {
+pub(super) struct Relay {
     addr: Multiaddr,
     status: Status,
 }
 
-pub(crate) enum Status {
+pub(super) enum Status {
     Unreachable,
     Disconnected(u8),
     Connecting {
@@ -21,19 +21,24 @@ pub(crate) enum Status {
     Relaying,
 }
 
+pub(super) enum ConnectionUpdate {
+    SentObservedAddr,
+    LearntObservedAddr(Multiaddr),
+}
+
 impl Relay {
-    pub(crate) fn new(addr: Multiaddr) -> Self {
+    pub(super) fn new(addr: Multiaddr) -> Self {
         Relay {
             addr,
             status: Status::Disconnected(0),
         }
     }
 
-    pub(crate) fn set_unreachable(&mut self) {
+    pub(super) fn set_unreachable(&mut self) {
         self.status = Status::Unreachable;
     }
 
-    pub(crate) fn set_disconnected(&mut self, reconn_policy: &ReconnectPolicy) {
+    pub(super) fn set_disconnected(&mut self, reconn_policy: &ReconnectPolicy) {
         self.status = match reconn_policy {
             ReconnectPolicy::Never => Status::Unreachable,
             ReconnectPolicy::Attempts(max_attempts) => {
@@ -52,27 +57,37 @@ impl Relay {
         }
     }
 
-    pub(crate) fn set_connecting(&mut self) {
+    pub(super) fn set_connecting(&mut self) {
         self.status = Status::Connecting {
             told_observed_addr: false,
             learnt_observed_addr: false,
         };
     }
 
-    pub(crate) fn update_connecting(
-        &mut self,
-        told_observed_addr: bool,
-        learnt_observed_addr: bool,
-    ) {
+    pub(super) fn update_connecting(&mut self, update: ConnectionUpdate) {
         match self.status {
             Status::Connecting {
-                told_observed_addr: curr_told_observed_addr,
-                learnt_observed_addr: curr_learnt_observed_addr,
+                told_observed_addr,
+                learnt_observed_addr,
             } => {
-                let told_observed_addr = told_observed_addr || curr_told_observed_addr;
-                let learnt_observed_addr = learnt_observed_addr || curr_learnt_observed_addr;
+                let relay = &self.addr;
+                let (told_observed_addr, learnt_observed_addr) = match update {
+                    ConnectionUpdate::SentObservedAddr => {
+                        if !told_observed_addr {
+                            tracing::info!(%relay, "told relay address");
+                        }
+                        (true, learnt_observed_addr)
+                    }
+                    ConnectionUpdate::LearntObservedAddr(multiaddr) => {
+                        if !learnt_observed_addr {
+                            tracing::info!(%relay, observed_addr=%multiaddr, "learnt observed address");
+                        }
+                        (told_observed_addr, true)
+                    }
+                };
 
                 self.status = if told_observed_addr && learnt_observed_addr {
+                    tracing::info!(%relay, "relay connection established");
                     Status::Connected
                 } else {
                     Status::Connecting {
@@ -85,22 +100,24 @@ impl Relay {
         }
     }
 
-    pub(crate) fn set_pending_reservation(&mut self) {
+    pub(super) fn set_pending_reservation(&mut self) {
         self.status = Status::PendingReservation;
     }
 
-    pub(crate) fn set_relaying(&mut self) {
+    pub(super) fn set_relaying(&mut self) {
+        let relay = &self.addr;
+        tracing::info!(%relay, "relay ready");
         self.status = Status::Relaying;
     }
 
-    pub(crate) fn is_unreachable(&self) -> bool {
+    pub(super) fn is_unreachable(&self) -> bool {
         match self.status {
             Status::Unreachable => true,
             _ => false,
         }
     }
 
-    pub(crate) fn is_connected(&self) -> bool {
+    pub(super) fn is_connected(&self) -> bool {
         match self.status {
             Status::Connected => true,
             _ => false,
