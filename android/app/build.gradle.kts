@@ -95,3 +95,9 @@ val ffiBuild: TaskProvider<Task> = tasks.register("ffiBuild", Task::class.java) 
         }
     }
 }
+
+tasks.configureEach {
+    if (name == "mergeDebugJniLibFolders" || name == "mergeReleaseJniLibFolders") {
+        dependsOn("ffiBuild")
+    }
+}
