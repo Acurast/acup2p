@@ -13,23 +13,38 @@ use super::super::node::NodeId;
 use super::listen::ListenerType;
 use super::NodeInner;
 
+const DELAY_SEC_RECONNECT: u64 = 15;
+const DELAY_SEC_RECONNECT_CIRCUIT_RELAY: u64 = 30;
+
 impl NodeInner {
     pub(super) async fn on_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) {
         match event {
-            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                self.notify_connected(&peer_id).await;
+            SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
+                let address = match endpoint {
+                    libp2p::core::ConnectedPoint::Dialer { address, .. } => address,
+                    libp2p::core::ConnectedPoint::Listener { local_addr, .. } => local_addr,
+                };
+                tracing::info!(peer=%peer_id, %address, "connection established");
+
+                self.notify_connected(&address).await;
             }
-            SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+            SwarmEvent::ConnectionClosed { peer_id, cause, endpoint, .. } => {
+                let address = match endpoint {
+                    libp2p::core::ConnectedPoint::Dialer { address, .. } => address,
+                    libp2p::core::ConnectedPoint::Listener { local_addr, .. } => local_addr,
+                };
+                tracing::info!(peer=%peer_id, %address, "connection closed");
+
                 if let Some(e) = cause {
-                    tracing::info!(error=%e, "relay connection closed unexpectedly");
-                    self.maybe_reconnect_relay(peer_id, None).await;
+                    tracing::info!(error=%e, "connection closed unexpectedly");
+                    self.maybe_reconnect_relay(peer_id, Some(Duration::from_secs(DELAY_SEC_RECONNECT))).await;
                 }
-                self.notify_disconnected(&peer_id).await;
+                self.notify_disconnected(&address).await;
             }
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 if let Some(peer_id) = peer_id {
-                    tracing::info!(%error, "relay connection failed");
-                    self.maybe_reconnect_relay(peer_id, None).await;
+                    tracing::info!(%error, "connection failed");
+                    self.maybe_reconnect_relay(peer_id, Some(Duration::from_secs(DELAY_SEC_RECONNECT))).await;
                 }
             }
             SwarmEvent::NewListenAddr {
@@ -58,7 +73,7 @@ impl NodeInner {
                 {
                     if let Err(e) = reason {
                         tracing::info!(error=%e, "circuit relay closed unexpectedly");
-                        self.maybe_reconnect_relay(peer_id, Some(Duration::from_secs(15)))
+                        self.maybe_reconnect_relay(peer_id, Some(Duration::from_secs(DELAY_SEC_RECONNECT_CIRCUIT_RELAY)))
                             .await;
                     }
                 }
@@ -72,6 +87,7 @@ impl NodeInner {
 
     async fn maybe_reconnect_relay(&mut self, peer_id: PeerId, delay: Option<Duration>) {
         if let Some(relay) = self.relays.get_mut(&peer_id) {
+            let _ = self.swarm.disconnect_peer_id(peer_id);
             relay.set_disconnected(&self.reconn_policy);
             if !relay.is_unreachable() {
                 self.send_dial_intent(NodeId::Peer(peer_id), delay).await

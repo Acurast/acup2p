@@ -18,16 +18,16 @@ impl NodeInner {
         .await;
     }
 
-    pub(super) async fn notify_connected(&mut self, peer_id: &PeerId) {
+    pub(super) async fn notify_connected(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::Connected {
-            node: base::types::NodeId::Peer { peer_id: peer_id.to_string() },
+            node: base::types::NodeId::Address { address: addr.to_string() },
         })
         .await;
     }
 
-    pub(super) async fn notify_disconnected(&mut self, peer_id: &PeerId) {
+    pub(super) async fn notify_disconnected(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::Disconnected {
-            node: base::types::NodeId::Peer { peer_id: peer_id.to_string() },
+            node: base::types::NodeId::Address { address: addr.to_string() },
         })
         .await;
     }
