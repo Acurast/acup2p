@@ -50,11 +50,15 @@ public class Acup2p(coroutineContext: CoroutineContext, config: Config = Config.
     }
 
     public suspend fun sendMessage(request: OutboundProtocolRequest, nodes: List<NodeId>) {
-        handler.intents.send(Intent.SendMessage(OutboundProtocolMessage.Request(request), nodes))
+        sendMessage(OutboundProtocolMessage.Request(request), nodes)
     }
 
     public suspend fun sendMessage(response: OutboundProtocolResponse, nodes: List<NodeId>) {
-        handler.intents.send(Intent.SendMessage(OutboundProtocolMessage.Response(response), nodes))
+        sendMessage(OutboundProtocolMessage.Response(response), nodes)
+    }
+
+    public suspend fun sendMessage(message: OutboundProtocolMessage, nodes: List<NodeId>) {
+        handler.intents.send(Intent.SendMessage(message, nodes))
     }
 
     public suspend fun close() {
