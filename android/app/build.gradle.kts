@@ -10,7 +10,7 @@ plugins {
 object Library {
     const val groupId = "com.acurast.p2p"
     const val artifactId = "acup2p"
-    const val version = "0.0.1"
+    const val version = "1.0.0"
 }
 
 android {
@@ -93,5 +93,11 @@ val ffiBuild: TaskProvider<Task> = tasks.register("ffiBuild", Task::class.java) 
                 "--language", "kotlin",
                 "--out-dir", "../android/app/src/main/java/com/acurast/p2p")
         }
+    }
+}
+
+tasks.configureEach {
+    if (name == "mergeDebugJniLibFolders" || name == "mergeReleaseJniLibFolders") {
+        dependsOn("ffiBuild")
     }
 }

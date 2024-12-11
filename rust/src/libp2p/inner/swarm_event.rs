@@ -14,7 +14,15 @@ use super::listen::ListenerType;
 use super::NodeInner;
 
 const DELAY_SEC_RECONNECT: u64 = 15;
-const DELAY_SEC_RECONNECT_CIRCUIT_RELAY: u64 = 30;
+
+//
+// by default, relay should limit the number of reservations
+// per single peer ID to one every 2 minutes
+// therefore, let's wait at least 2 minutes before retry
+//
+// source: https://github.com/libp2p/rust-libp2p/blob/v0.54.1/protocols/relay/src/behaviour.rs#L122
+//
+const DELAY_SEC_RECONNECT_CIRCUIT_RELAY: u64 = 125;
 
 impl NodeInner {
     pub(super) async fn on_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) {
