@@ -1,5 +1,7 @@
 use std::fmt;
 
+use super::NodeId;
+
 macro_rules! protocol_message {
     ($name:ident) => {
         #[cfg_attr(
@@ -106,4 +108,10 @@ impl fmt::Display for OutboundProtocolMessage {
             OutboundProtocolMessage::Response(message) => write!(f, "Response({message})"),
         }
     }
+}
+
+pub struct StreamMessage {
+    pub protocol: String,
+    pub sender: NodeId,
+    pub bytes: Vec<u8>,
 }

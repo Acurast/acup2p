@@ -168,11 +168,15 @@ impl TryFrom<String> for Command {
             alt((
                 map(
                     delimited(tag("peer("), take_until(")"), tag(")")),
-                    |peer_id: &str| NodeId::Peer { peer_id: peer_id.to_string() },
+                    |peer_id: &str| NodeId::Peer {
+                        peer_id: peer_id.to_string(),
+                    },
                 ),
                 map(
                     delimited(tag("addr("), take_until(")"), tag(")")),
-                    |addr: &str| NodeId::Address { address: addr.to_string() },
+                    |addr: &str| NodeId::Address {
+                        address: addr.to_string(),
+                    },
                 ),
             ))(input)
         }

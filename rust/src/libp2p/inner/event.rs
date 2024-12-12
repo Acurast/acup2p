@@ -20,14 +20,18 @@ impl NodeInner {
 
     pub(super) async fn notify_connected(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::Connected {
-            node: base::types::NodeId::Address { address: addr.to_string() },
+            node: base::types::NodeId::Address {
+                address: addr.to_string(),
+            },
         })
         .await;
     }
 
     pub(super) async fn notify_disconnected(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::Disconnected {
-            node: base::types::NodeId::Address { address: addr.to_string() },
+            node: base::types::NodeId::Address {
+                address: addr.to_string(),
+            },
         })
         .await;
     }
@@ -40,7 +44,9 @@ impl NodeInner {
         request_id: String,
     ) {
         self.notify(base::types::Event::InboundRequest {
-            sender: base::types::NodeId::Peer { peer_id: peer_id.to_string() },
+            sender: base::types::NodeId::Peer {
+                peer_id: peer_id.to_string(),
+            },
             request: base::types::InboundProtocolRequest {
                 protocol,
                 bytes: request,
@@ -58,7 +64,9 @@ impl NodeInner {
         request_id: String,
     ) {
         self.notify(base::types::Event::InboundResponse {
-            sender: base::types::NodeId::Peer { peer_id: peer_id.to_string() },
+            sender: base::types::NodeId::Peer {
+                peer_id: peer_id.to_string(),
+            },
             response: base::types::InboundProtocolResponse {
                 protocol,
                 bytes: response,

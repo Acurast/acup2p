@@ -4,15 +4,18 @@ pub(super) mod intent;
 pub(super) mod listen;
 pub(super) mod message;
 pub(super) mod send;
+pub(super) mod stream;
 pub(super) mod swarm_event;
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use futures::StreamExt;
 use libp2p::core::transport::ListenerId;
 use libp2p::identity::Keypair;
 use libp2p::{noise, tcp, tls, yamux, Multiaddr, PeerId, Swarm, SwarmBuilder};
-use libp2p_request_response::ResponseChannel;
+use libp2p_request_response as request_response;
+use stream::StreamControl;
 use tokio::select;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -29,7 +32,7 @@ use super::Intent;
 use self::listen::ListenerType;
 use self::message::Message;
 
-const DEFAULT_CHANNEL_BUFFER: u8 = 255;
+const DEFAULT_CHANNEL_BUFFER: usize = 255;
 
 pub(super) struct NodeInner {
     ext_event_tx: Sender<Event>,
@@ -41,12 +44,15 @@ pub(super) struct NodeInner {
     is_active: bool,
     swarm: Swarm<Behaviour>,
 
+    streams: HashMap<Arc<String>, StreamControl>,
+
     required_listeners: HashSet<ListenerType>,
     tracked_listeners: HashMap<ListenerId, ListenerType>,
 
     listeners: HashSet<ListenerId>,
     relays: HashMap<PeerId, Relay>,
-    response_channels: HashMap<(NodeId, String, String), ResponseChannel<Vec<u8>>>,
+    response_channels:
+        HashMap<(NodeId, String, String), request_response::ResponseChannel<Vec<u8>>>,
 
     reconn_policy: ReconnectPolicy,
 }
@@ -105,7 +111,18 @@ impl NodeInner {
             .with_swarm_config(|c| c.with_idle_connection_timeout(config.idle_conn_timeout))
             .build();
 
-        let (int_event_tx, int_event_rx) = channel(usize::from(DEFAULT_CHANNEL_BUFFER));
+        let streams = config
+            .stream_protocols
+            .iter()
+            .map(|&p| {
+                let protocol = Arc::new(p.to_owned());
+                let control = StreamControl::new(protocol.clone(), &swarm.behaviour().stream)?;
+
+                Ok((protocol, control))
+            })
+            .collect::<Result<_, stream::Error>>()?;
+
+        let (int_event_tx, int_event_rx) = channel(DEFAULT_CHANNEL_BUFFER);
 
         Ok(NodeInner {
             ext_event_tx: event_tx,
@@ -116,6 +133,8 @@ impl NodeInner {
 
             is_active: true,
             swarm,
+
+            streams,
 
             required_listeners: HashSet::new(),
             tracked_listeners: HashMap::new(),

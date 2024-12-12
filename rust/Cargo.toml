@@ -13,6 +13,7 @@ libp2p = [
   "tokio",
   "dep:libp2p",
   "dep:libp2p-request-response",
+  "dep:libp2p-stream",
   "dep:rand",
   "dep:tracing",
   "dep:tracing-subscriber",
@@ -24,6 +25,7 @@ async-trait = "0.1.83"
 futures = "0.3.31"
 libp2p = { git = "https://github.com/Acurast/rust-libp2p.git", branch = "websocket-custom-dns-config", features = ["tokio", "macros", "tcp", "quic", "dns", "websocket", "noise", "tls", "yamux", "mdns", "relay", "dcutr", "identify", "ping"], optional = true }
 libp2p-request-response = { git = "https://github.com/Acurast/rust-libp2p.git", branch = "websocket-custom-dns-config", optional = true }
+libp2p-stream = { git = "https://github.com/Acurast/rust-libp2p.git", branch = "websocket-custom-dns-config", optional = true }
 rand = { version = "0.8.5", optional = true }
 tokio = { version = "1.41.1", features = ["macros"], optional = true }
 tracing = { version = "0.1.40", optional = true }
