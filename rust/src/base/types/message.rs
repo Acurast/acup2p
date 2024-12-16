@@ -110,6 +110,7 @@ impl fmt::Display for OutboundProtocolMessage {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct StreamMessage {
     pub protocol: String,
     pub sender: NodeId,

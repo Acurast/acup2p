@@ -1,10 +1,9 @@
-pub mod stream;
 pub mod types;
 
 use async_trait::async_trait;
 use futures::Stream;
 use std::time::Duration;
-use stream::InboundStream;
+use types::StreamMessage;
 
 use crate::types::connection::ReconnectPolicy;
 use crate::types::result::Result;
@@ -26,11 +25,7 @@ pub trait Node: Stream<Item = Event> {
         nodes: &[NodeId],
     ) -> Result<()>;
 
-    async fn read_stream(
-        &mut self,
-        protocol: &str,
-        buffer_size: usize,
-    ) -> Result<Box<dyn InboundStream>>;
+    async fn stream_next(&mut self, protocol: &str) -> Option<StreamMessage>;
 
     async fn close(&mut self) -> Result<()>;
 }
@@ -40,7 +35,7 @@ pub struct Config<'a> {
     pub identity: Identity,
 
     pub msg_protocols: Vec<&'a str>,
-    pub stream_protocols: Vec<&'a str>,
+    pub stream_protocols: Vec<(&'a str, StreamConfig)>,
 
     pub relay_addrs: Vec<&'a str>,
 
@@ -57,6 +52,21 @@ impl Default for Config<'_> {
             relay_addrs: vec![],
             reconn_policy: ReconnectPolicy::Always,
             idle_conn_timeout: Duration::ZERO,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StreamConfig {
+    pub messages_buffer_size: usize,
+    pub read_buffer_size: usize,
+}
+
+impl Default for StreamConfig {
+    fn default() -> Self {
+        Self {
+            messages_buffer_size: 64,
+            read_buffer_size: 1024,
         }
     }
 }

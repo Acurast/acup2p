@@ -18,6 +18,7 @@ use libp2p_request_response as request_response;
 use stream::StreamControl;
 use tokio::select;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::Mutex;
 
 use crate::base::types::{Event, Identity};
 use crate::base::{self};
@@ -27,6 +28,7 @@ use super::behaviour::Behaviour;
 use super::identity::ed25519;
 use super::node::NodeId;
 use super::relay::Relay;
+use super::stream::StreamMessage;
 use super::Intent;
 
 use self::listen::ListenerType;
@@ -61,6 +63,7 @@ impl NodeInner {
     pub(super) async fn new(
         event_tx: Sender<Event>,
         intent_rx: Receiver<Intent>,
+        stream_rx: HashMap<Arc<String>, Arc<Mutex<Sender<StreamMessage>>>>,
         config: base::Config<'_>,
     ) -> Result<Self> {
         let security_upgrade = (tls::Config::new, noise::Config::new);
@@ -114,11 +117,21 @@ impl NodeInner {
         let streams = config
             .stream_protocols
             .iter()
-            .map(|&p| {
-                let protocol = Arc::new(p.to_owned());
-                let control = StreamControl::new(protocol.clone(), &swarm.behaviour().stream)?;
+            .filter_map(|(p, c)| {
+                let protocol = Arc::new((*p).to_owned());
+                let tx = stream_rx.get(&protocol);
 
-                Ok((protocol, control))
+                tx.map(|tx| (protocol, c.read_buffer_size, tx))
+            })
+            .map(|(p, buffer_size, tx)| {
+                let control = StreamControl::new(
+                    p.clone(),
+                    buffer_size,
+                    tx.clone(),
+                    &swarm.behaviour().stream,
+                )?;
+
+                Ok((p, control))
             })
             .collect::<Result<_, stream::Error>>()?;
 
@@ -172,6 +185,8 @@ impl NodeInner {
             self.notify_error(e.to_string()).await;
             return;
         }
+
+        self.open_incoming_streams();
 
         let mut swarm_closed = false;
         let mut cmd_closed = false;

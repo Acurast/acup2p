@@ -12,14 +12,6 @@ impl fmt::Display for Intent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Intent::DirectMessage { peer, message } => write!(f, "Send {message} to {peer}"),
-            Intent::ReadStream {
-                protocol,
-                buffer_size,
-                ..
-            } => write!(
-                f,
-                "Read from stream {protocol} with {buffer_size} bytes buffer"
-            ),
             Intent::Dial(peer) => write!(f, "Dial {peer}"),
             Intent::Disconnect(peer) => write!(f, "Disconnect from {peer}"),
             Intent::Close => write!(f, "Close"),
@@ -35,15 +27,6 @@ impl NodeInner {
                 message,
             } => {
                 if let Err(e) = self.send_direct_message(node, message).await {
-                    self.notify_error(e.to_string()).await;
-                }
-            }
-            Intent::ReadStream {
-                tx,
-                protocol,
-                buffer_size,
-            } => {
-                if let Err(e) = self.open_incoming_streams(protocol, buffer_size, tx) {
                     self.notify_error(e.to_string()).await;
                 }
             }

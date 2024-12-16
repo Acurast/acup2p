@@ -5,7 +5,7 @@ use std::sync::Arc;
 use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use libp2p::swarm::InvalidProtocol;
 use libp2p::{Stream, StreamProtocol};
-use libp2p_stream::{self as stream, AlreadyRegistered};
+use libp2p_stream::{self as stream, AlreadyRegistered, IncomingStreams};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
@@ -16,12 +16,19 @@ use super::NodeInner;
 
 pub(super) struct StreamControl {
     protocol: Arc<String>,
-    incoming_streams: Arc<Mutex<stream::IncomingStreams>>,
+    buffer_size: usize,
+    tx: Arc<Mutex<Sender<StreamMessage>>>,
+    incoming_streams: Arc<Mutex<IncomingStreams>>,
     outgoing_streams: Vec<Stream>,
 }
 
 impl StreamControl {
-    pub(super) fn new(protocol: Arc<String>, behaviour: &stream::Behaviour) -> Result<Self, Error> {
+    pub(super) fn new(
+        protocol: Arc<String>,
+        buffer_size: usize,
+        tx: Arc<Mutex<Sender<StreamMessage>>>,
+        behaviour: &stream::Behaviour,
+    ) -> Result<Self, Error> {
         let incoming_streams = behaviour
             .new_control()
             .accept(
@@ -31,25 +38,25 @@ impl StreamControl {
             .map_err(|e| Error::AlreadyRegistered(e))?;
 
         Ok(StreamControl {
-            protocol,
+            protocol: protocol.clone(),
+            buffer_size,
+            tx: tx.clone(),
             incoming_streams: Arc::new(Mutex::new(incoming_streams)),
             outgoing_streams: vec![],
         })
     }
 
-    pub(super) fn listen_incoming(
-        &mut self,
-        buffer_size: usize,
-        tx: Arc<Mutex<Sender<StreamMessage>>>,
-    ) {
+    fn open_incoming(&mut self) {
         let protocol = self.protocol.clone();
+        let buffer_size = self.buffer_size;
         let incoming_streams = self.incoming_streams.clone();
+        let tx = self.tx.clone();
 
         tokio::spawn(async move {
             while let Some((peer, mut stream)) = incoming_streams.lock().await.next().await {
                 let protocol = protocol.clone();
                 let tx = tx.clone();
-                
+
                 tokio::spawn(async move {
                     let mut buf = vec![0u8; buffer_size];
                     loop {
@@ -92,17 +99,10 @@ impl StreamControl {
 }
 
 impl NodeInner {
-    pub(super) fn open_incoming_streams(
-        &mut self,
-        protocol: String,
-        buffer_size: usize,
-        tx: Sender<StreamMessage>,
-    ) -> Result<(), Error> {
-        if let Some(control) = self.streams.get_mut(&protocol) {
-            control.listen_incoming(buffer_size, Arc::new(Mutex::new(tx)));
+    pub(super) fn open_incoming_streams(&mut self) {
+        for control in self.streams.values_mut() {
+            control.open_incoming();
         }
-
-        Ok(())
     }
 }
 

@@ -8,9 +8,12 @@ mod stream;
 
 use async_trait::async_trait;
 use futures::Stream;
-use stream::StreamMessage;
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
 use tokio::spawn;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::Mutex;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
@@ -20,12 +23,15 @@ use crate::types::Result;
 
 use self::inner::NodeInner;
 use self::node::NodeId;
+use self::stream::StreamMessage;
 
 const DEFAULT_CHANNEL_BUFFER: usize = 255;
 
 pub struct Node {
     intent_tx: Sender<Intent>,
     event_rx: Receiver<Event>,
+
+    stream_rx: HashMap<Arc<String>, Receiver<StreamMessage>>,
 }
 
 #[async_trait]
@@ -33,8 +39,25 @@ impl base::Node for Node {
     async fn new(config: base::Config<'_>) -> Result<Self> {
         let (event_tx, event_rx) = channel(DEFAULT_CHANNEL_BUFFER);
         let (intent_tx, intent_rx) = channel(DEFAULT_CHANNEL_BUFFER);
+        let (stream_tx, stream_rx) = config
+            .stream_protocols
+            .iter()
+            .map(|(p, c)| {
+                let (tx, rx) = channel(c.messages_buffer_size);
 
-        let mut inner = NodeInner::new(event_tx, intent_rx, config).await?;
+                (Arc::new((*p).to_owned()), tx, rx)
+            })
+            .fold(
+                (HashMap::new(), HashMap::new()),
+                |(mut tx_map, mut rx_map), (p, tx, rx)| {
+                    tx_map.insert(p.clone(), Arc::new(Mutex::new(tx)));
+                    rx_map.insert(p.clone(), rx);
+
+                    (tx_map, rx_map)
+                },
+            );
+
+        let mut inner = NodeInner::new(event_tx, intent_rx, stream_tx, config).await?;
         spawn(async move {
             inner.start().await;
         });
@@ -42,6 +65,7 @@ impl base::Node for Node {
         Ok(Node {
             intent_tx,
             event_rx,
+            stream_rx,
         })
     }
 
@@ -80,23 +104,16 @@ impl base::Node for Node {
         Ok(())
     }
 
-    async fn read_stream(
-        &mut self,
-        protocol: &str,
-        buffer_size: usize,
-    ) -> Result<Box<dyn base::stream::InboundStream>> {
-        let (tx, rx) = channel(DEFAULT_CHANNEL_BUFFER);
-        let stream = InboundStream { rx };
+    async fn stream_next(&mut self, protocol: &str) -> Option<base::types::StreamMessage> {
+        let rx = match self.stream_rx.get_mut(&Arc::new(protocol.to_owned())) {
+            Some(rx) => rx,
+            None => return None,
+        };
 
-        self.intent_tx
-            .send(Intent::ReadStream {
-                tx,
-                protocol: protocol.to_owned(),
-                buffer_size,
-            })
-            .await?;
-
-        Ok(Box::new(stream))
+        match rx.recv().await {
+            Some(StreamMessage::Frame(stream_message)) => Some(stream_message),
+            _ => None,
+        }
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -148,33 +165,23 @@ pub(self) enum Intent {
         peer: NodeId,
         message: OutboundProtocolMessage,
     },
-    ReadStream {
-        tx: Sender<StreamMessage>,
-        protocol: String,
-        buffer_size: usize,
-    },
     Dial(NodeId),
     Disconnect(NodeId),
     Close,
 }
 
-struct InboundStream {
-    rx: Receiver<StreamMessage>,
+#[derive(Debug)]
+pub(self) enum Error {
+    UnknownProtocol(String),
 }
 
-impl base::stream::InboundStream for InboundStream {}
+impl std::error::Error for Error {}
 
-impl Stream for InboundStream {
-    type Item = base::types::StreamMessage;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        self.as_mut().rx.poll_recv(cx).map(|msg| match msg {
-            Some(StreamMessage::Frame(msg)) => Some(msg),
-            _ => None,
-        })
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::UnknownProtocol(protocol) => write!(f, "Unknown protocol {protocol}"),
+        }
     }
 }
 
