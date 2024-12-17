@@ -4,11 +4,9 @@ pub mod inner;
 mod message;
 mod node;
 mod relay;
-mod stream;
 
 use async_trait::async_trait;
 use futures::Stream;
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -23,7 +21,6 @@ use crate::types::Result;
 
 use self::inner::NodeInner;
 use self::node::NodeId;
-use self::stream::StreamMessage;
 
 const DEFAULT_CHANNEL_BUFFER: usize = 255;
 
@@ -31,8 +28,15 @@ pub struct Node {
     intent_tx: Sender<Intent>,
     event_rx: Receiver<Event>,
 
-    incoming_stream_rx: HashMap<Arc<String>, Receiver<StreamMessage>>,
-    outgoing_stream_tx: HashMap<Arc<String>, Sender<StreamMessage>>,
+    incoming_stream_rx: HashMap<
+        Arc<String>,
+        Receiver<(base::types::NodeId, Box<dyn base::stream::IncomingStream>)>,
+    >,
+
+    outgoing_stream_tx:
+        HashMap<Arc<String>, Arc<Mutex<Sender<Result<Box<dyn base::stream::OutgoingStream>>>>>>,
+    outgoing_stream_rx:
+        HashMap<Arc<String>, Receiver<Result<Box<dyn base::stream::OutgoingStream>>>>,
 }
 
 #[async_trait]
@@ -44,8 +48,8 @@ impl base::Node for Node {
             .stream_protocols
             .iter()
             .map(|(p, c)| {
-                let (incoming_tx, incoming_rx) = channel(c.messages_buffer_size);
-                let (outgoing_tx, outgoing_rx) = channel(1);
+                let (incoming_tx, incoming_rx) = channel(c.incoming_buffer_size);
+                let (outgoing_tx, outgoing_rx) = channel(c.outgoing_buffer_size);
 
                 (Arc::new((*p).to_owned()), (incoming_tx, incoming_rx), (outgoing_tx, outgoing_rx))
             })
@@ -55,8 +59,8 @@ impl base::Node for Node {
                     incoming_tx_map.insert(p.clone(), Arc::new(Mutex::new(incoming_tx)));
                     incoming_rx_map.insert(p.clone(), incoming_rx);
 
-                    outgoing_tx_map.insert(p.clone(), outgoing_tx);
-                    outgoing_rx_map.insert(p.clone(), Arc::new(Mutex::new(outgoing_rx)));
+                    outgoing_tx_map.insert(p.clone(), Arc::new(Mutex::new(outgoing_tx)));
+                    outgoing_rx_map.insert(p.clone(), outgoing_rx);
 
                     ((incoming_tx_map, incoming_rx_map), (outgoing_tx_map, outgoing_rx_map))
                 },
@@ -64,7 +68,7 @@ impl base::Node for Node {
 
         let mut inner = NodeInner::new(event_tx, intent_rx, config).await?;
         tokio::spawn(async move {
-            inner.start(&incoming_stream_tx, &outgoing_stream_rx).await;
+            inner.start(&incoming_stream_tx).await;
         });
 
         Ok(Node {
@@ -72,6 +76,7 @@ impl base::Node for Node {
             event_rx,
             incoming_stream_rx,
             outgoing_stream_tx,
+            outgoing_stream_rx,
         })
     }
 
@@ -110,10 +115,10 @@ impl base::Node for Node {
         Ok(())
     }
 
-    async fn stream_read(
+    async fn next_incoming_stream(
         &mut self,
         protocol: &str,
-    ) -> Option<(base::types::NodeId, base::types::StreamMessage)> {
+    ) -> Option<(base::types::NodeId, Box<dyn base::stream::IncomingStream>)> {
         let rx = match self
             .incoming_stream_rx
             .get_mut(&Arc::new(protocol.to_owned()))
@@ -122,33 +127,36 @@ impl base::Node for Node {
             None => return None,
         };
 
-        match rx.recv().await {
-            Some(StreamMessage::Frame((node, message))) => Some((node.borrow().into(), message)),
-            _ => None,
-        }
+        rx.recv().await
     }
 
-    async fn stream_write(
+    async fn open_outgoing_stream(
         &mut self,
-        message: base::types::StreamMessage,
-        nodes: &[base::types::NodeId],
-        eos: bool,
-    ) -> Result<()> {
+        protocol: &str,
+        node: base::types::NodeId,
+    ) -> Result<Box<dyn base::stream::OutgoingStream>> {
+        let protocol = Arc::new(protocol.to_owned());
         let tx = self
             .outgoing_stream_tx
-            .get(&Arc::new(message.protocol.clone()))
-            .ok_or(Error::UnknownProtocol(message.protocol.clone()))?;
+            .get(&protocol)
+            .ok_or(Error::UnknownProtocol((*protocol).clone()))?;
 
-        for node in nodes {
-            tx.send(StreamMessage::Frame((node.try_into()?, message.clone())))
-                .await?;
+        let rx = self
+            .outgoing_stream_rx
+            .get_mut(&protocol)
+            .ok_or(Error::UnknownProtocol((*protocol).clone()))?;
 
-            if eos {
-                tx.send(StreamMessage::EOS(node.try_into()?)).await?;
-            }
-        }
+        self.intent_tx
+            .send(Intent::OpenStream {
+                peer: (&node).try_into()?,
+                protocol: (*protocol).clone(),
+                tx: tx.clone(),
+            })
+            .await?;
 
-        Ok(())
+        let result = rx.recv().await.ok_or(Error::NodeClosed)?;
+
+        result
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -200,6 +208,11 @@ pub(self) enum Intent {
         peer: NodeId,
         message: OutboundMessage,
     },
+    OpenStream {
+        peer: NodeId,
+        protocol: String,
+        tx: Arc<Mutex<Sender<Result<Box<dyn base::stream::OutgoingStream>>>>>,
+    },
     Dial(NodeId),
     Disconnect(NodeId),
     Close,
@@ -208,6 +221,7 @@ pub(self) enum Intent {
 #[derive(Debug)]
 pub(self) enum Error {
     UnknownProtocol(String),
+    NodeClosed,
 }
 
 impl std::error::Error for Error {}
@@ -216,6 +230,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::UnknownProtocol(protocol) => write!(f, "Unknown protocol {protocol}"),
+            Error::NodeClosed => write!(f, "Node is closed"),
         }
     }
 }

@@ -28,7 +28,6 @@ use super::behaviour::Behaviour;
 use super::identity::ed25519;
 use super::node::NodeId;
 use super::relay::Relay;
-use super::stream::StreamMessage;
 use super::Intent;
 
 use self::listen::ListenerType;
@@ -116,13 +115,9 @@ impl NodeInner {
         let streams = config
             .stream_protocols
             .iter()
-            .map(|(p, c)| {
-                let protocol = Arc::new((*p).to_owned());
-                let control = StreamControl::new(
-                    protocol.clone(),
-                    c.read_buffer_size,
-                    &swarm.behaviour().stream,
-                )?;
+            .map(|&(p, _)| {
+                let protocol = Arc::new(p.to_owned());
+                let control = StreamControl::new(protocol.clone(), &swarm.behaviour().stream)?;
 
                 Ok((protocol, control))
             })
@@ -175,16 +170,17 @@ impl NodeInner {
 
     pub(super) async fn start(
         &mut self,
-        incoming_stream_tx: &HashMap<Arc<String>, Arc<Mutex<Sender<StreamMessage>>>>,
-        outgoing_stream_rx: &HashMap<Arc<String>, Arc<Mutex<Receiver<StreamMessage>>>>,
+        incoming_stream_tx: &HashMap<
+            Arc<String>,
+            Arc<Mutex<Sender<(base::types::NodeId, Box<dyn base::stream::IncomingStream>)>>>,
+        >,
     ) {
         if let Err(e) = self.listen() {
             self.notify_error(e.to_string()).await;
             return;
         }
 
-        self.open_incoming_streams(incoming_stream_tx);
-        self.subscribe_outgoing_streams(outgoing_stream_rx);
+        self.subscribe_incoming_streams(incoming_stream_tx);
 
         let mut swarm_closed = false;
         let mut cmd_closed = false;

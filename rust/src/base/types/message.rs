@@ -57,9 +57,10 @@ macro_rules! protocol_message {
     };
 }
 
-type InboundRequestId = String;
-type InboundResponseId = String;
-type OutboundResponseId = InboundRequestId;
+pub type InboundRequestId = String;
+pub type InboundResponseId = String;
+pub type OutboundRequestId = String;
+pub type OutboundResponseId = InboundRequestId;
 
 protocol_message!(InboundRequest {
     id: InboundRequestId
@@ -107,5 +108,3 @@ impl fmt::Display for OutboundMessage {
         }
     }
 }
-
-protocol_message!(StreamMessage);

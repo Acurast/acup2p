@@ -1,13 +1,15 @@
+pub mod stream;
 pub mod types;
 
 use async_trait::async_trait;
 use futures::Stream;
 use std::time::Duration;
-use types::StreamMessage;
+use stream::OutgoingStream;
 
 use crate::types::connection::ReconnectPolicy;
 use crate::types::result::Result;
 
+use self::stream::IncomingStream;
 use self::types::{Event, Identity, NodeId, OutboundMessage};
 
 #[async_trait]
@@ -21,13 +23,15 @@ pub trait Node: Stream<Item = Event> {
 
     async fn send_message(&mut self, message: OutboundMessage, nodes: &[NodeId]) -> Result<()>;
 
-    async fn stream_read(&mut self, protocol: &str) -> Option<(NodeId, StreamMessage)>;
-    async fn stream_write(
+    async fn next_incoming_stream(
         &mut self,
-        message: StreamMessage,
-        nodes: &[NodeId],
-        eos: bool,
-    ) -> Result<()>;
+        protocol: &str,
+    ) -> Option<(NodeId, Box<dyn IncomingStream>)>;
+    async fn open_outgoing_stream(
+        &mut self,
+        protocol: &str,
+        node: NodeId,
+    ) -> Result<Box<dyn OutgoingStream>>;
 
     async fn close(&mut self) -> Result<()>;
 }
@@ -60,15 +64,15 @@ impl Default for Config<'_> {
 
 #[derive(Debug, Clone)]
 pub struct StreamConfig {
-    pub messages_buffer_size: usize,
-    pub read_buffer_size: usize,
+    pub incoming_buffer_size: usize,
+    pub outgoing_buffer_size: usize,
 }
 
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
-            messages_buffer_size: 64,
-            read_buffer_size: 1024,
+            incoming_buffer_size: 64,
+            outgoing_buffer_size: 1,
         }
     }
 }

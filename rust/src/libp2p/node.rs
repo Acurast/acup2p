@@ -4,7 +4,6 @@ use libp2p::swarm::dial_opts::DialOpts;
 use libp2p::{identity, multiaddr, Multiaddr, PeerId};
 
 use crate::base;
-use crate::types::MaybeFrom;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) enum NodeId {
