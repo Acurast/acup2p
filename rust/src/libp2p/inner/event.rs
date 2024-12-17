@@ -47,7 +47,7 @@ impl NodeInner {
             sender: base::types::NodeId::Peer {
                 peer_id: peer_id.to_string(),
             },
-            request: base::types::InboundProtocolRequest {
+            request: base::types::InboundRequest {
                 protocol,
                 bytes: request,
                 id: request_id,
@@ -67,7 +67,7 @@ impl NodeInner {
             sender: base::types::NodeId::Peer {
                 peer_id: peer_id.to_string(),
             },
-            response: base::types::InboundProtocolResponse {
+            response: base::types::InboundResponse {
                 protocol,
                 bytes: response,
                 id: request_id,
@@ -79,7 +79,7 @@ impl NodeInner {
     pub(super) async fn notify_outbound_request(
         &mut self,
         node: &NodeId,
-        message: base::types::OutboundProtocolRequest,
+        message: base::types::OutboundRequest,
     ) {
         self.notify(base::types::Event::OutboundRequest {
             receiver: node.into(),
@@ -91,7 +91,7 @@ impl NodeInner {
     pub(super) async fn notify_outbound_response(
         &mut self,
         node: &NodeId,
-        message: base::types::OutboundProtocolResponse,
+        message: base::types::OutboundResponse,
     ) {
         self.notify(base::types::Event::OutboundResponse {
             receiver: node.into(),

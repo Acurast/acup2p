@@ -8,17 +8,17 @@ mod stream;
 
 use async_trait::async_trait;
 use futures::Stream;
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-use tokio::spawn;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 use crate::base;
-use crate::base::types::{Event, OutboundProtocolMessage};
+use crate::base::types::{Event, OutboundMessage};
 use crate::types::Result;
 
 use self::inner::NodeInner;
@@ -31,7 +31,8 @@ pub struct Node {
     intent_tx: Sender<Intent>,
     event_rx: Receiver<Event>,
 
-    stream_rx: HashMap<Arc<String>, Receiver<StreamMessage>>,
+    incoming_stream_rx: HashMap<Arc<String>, Receiver<StreamMessage>>,
+    outgoing_stream_tx: HashMap<Arc<String>, Sender<StreamMessage>>,
 }
 
 #[async_trait]
@@ -39,33 +40,38 @@ impl base::Node for Node {
     async fn new(config: base::Config<'_>) -> Result<Self> {
         let (event_tx, event_rx) = channel(DEFAULT_CHANNEL_BUFFER);
         let (intent_tx, intent_rx) = channel(DEFAULT_CHANNEL_BUFFER);
-        let (stream_tx, stream_rx) = config
+        let ((incoming_stream_tx, incoming_stream_rx), (outgoing_stream_tx, outgoing_stream_rx)) = config
             .stream_protocols
             .iter()
             .map(|(p, c)| {
-                let (tx, rx) = channel(c.messages_buffer_size);
+                let (incoming_tx, incoming_rx) = channel(c.messages_buffer_size);
+                let (outgoing_tx, outgoing_rx) = channel(1);
 
-                (Arc::new((*p).to_owned()), tx, rx)
+                (Arc::new((*p).to_owned()), (incoming_tx, incoming_rx), (outgoing_tx, outgoing_rx))
             })
             .fold(
-                (HashMap::new(), HashMap::new()),
-                |(mut tx_map, mut rx_map), (p, tx, rx)| {
-                    tx_map.insert(p.clone(), Arc::new(Mutex::new(tx)));
-                    rx_map.insert(p.clone(), rx);
+                ((HashMap::new(), HashMap::new()), (HashMap::new(), HashMap::new())),
+                |((mut incoming_tx_map, mut incoming_rx_map), (mut outgoing_tx_map, mut outgoing_rx_map)), (p, (incoming_tx, incoming_rx), (outgoing_tx, outgoing_rx))| {
+                    incoming_tx_map.insert(p.clone(), Arc::new(Mutex::new(incoming_tx)));
+                    incoming_rx_map.insert(p.clone(), incoming_rx);
 
-                    (tx_map, rx_map)
+                    outgoing_tx_map.insert(p.clone(), outgoing_tx);
+                    outgoing_rx_map.insert(p.clone(), Arc::new(Mutex::new(outgoing_rx)));
+
+                    ((incoming_tx_map, incoming_rx_map), (outgoing_tx_map, outgoing_rx_map))
                 },
             );
 
-        let mut inner = NodeInner::new(event_tx, intent_rx, stream_tx, config).await?;
-        spawn(async move {
-            inner.start().await;
+        let mut inner = NodeInner::new(event_tx, intent_rx, config).await?;
+        tokio::spawn(async move {
+            inner.start(&incoming_stream_tx, &outgoing_stream_rx).await;
         });
 
         Ok(Node {
             intent_tx,
             event_rx,
-            stream_rx,
+            incoming_stream_rx,
+            outgoing_stream_tx,
         })
     }
 
@@ -89,7 +95,7 @@ impl base::Node for Node {
 
     async fn send_message(
         &mut self,
-        message: OutboundProtocolMessage,
+        message: OutboundMessage,
         nodes: &[base::types::NodeId],
     ) -> Result<()> {
         for node in nodes {
@@ -104,16 +110,45 @@ impl base::Node for Node {
         Ok(())
     }
 
-    async fn stream_next(&mut self, protocol: &str) -> Option<base::types::StreamMessage> {
-        let rx = match self.stream_rx.get_mut(&Arc::new(protocol.to_owned())) {
+    async fn stream_read(
+        &mut self,
+        protocol: &str,
+    ) -> Option<(base::types::NodeId, base::types::StreamMessage)> {
+        let rx = match self
+            .incoming_stream_rx
+            .get_mut(&Arc::new(protocol.to_owned()))
+        {
             Some(rx) => rx,
             None => return None,
         };
 
         match rx.recv().await {
-            Some(StreamMessage::Frame(stream_message)) => Some(stream_message),
+            Some(StreamMessage::Frame((node, message))) => Some((node.borrow().into(), message)),
             _ => None,
         }
+    }
+
+    async fn stream_write(
+        &mut self,
+        message: base::types::StreamMessage,
+        nodes: &[base::types::NodeId],
+        eos: bool,
+    ) -> Result<()> {
+        let tx = self
+            .outgoing_stream_tx
+            .get(&Arc::new(message.protocol.clone()))
+            .ok_or(Error::UnknownProtocol(message.protocol.clone()))?;
+
+        for node in nodes {
+            tx.send(StreamMessage::Frame((node.try_into()?, message.clone())))
+                .await?;
+
+            if eos {
+                tx.send(StreamMessage::EOS(node.try_into()?)).await?;
+            }
+        }
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -163,7 +198,7 @@ impl Node {
 pub(self) enum Intent {
     DirectMessage {
         peer: NodeId,
-        message: OutboundProtocolMessage,
+        message: OutboundMessage,
     },
     Dial(NodeId),
     Disconnect(NodeId),

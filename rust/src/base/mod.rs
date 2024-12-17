@@ -8,7 +8,7 @@ use types::StreamMessage;
 use crate::types::connection::ReconnectPolicy;
 use crate::types::result::Result;
 
-use self::types::{Event, Identity, NodeId, OutboundProtocolMessage};
+use self::types::{Event, Identity, NodeId, OutboundMessage};
 
 #[async_trait]
 pub trait Node: Stream<Item = Event> {
@@ -19,13 +19,15 @@ pub trait Node: Stream<Item = Event> {
     async fn connect(&mut self, nodes: &[NodeId]) -> Result<()>;
     async fn disconnect(&mut self, nodes: &[NodeId]) -> Result<()>;
 
-    async fn send_message(
-        &mut self,
-        message: OutboundProtocolMessage,
-        nodes: &[NodeId],
-    ) -> Result<()>;
+    async fn send_message(&mut self, message: OutboundMessage, nodes: &[NodeId]) -> Result<()>;
 
-    async fn stream_next(&mut self, protocol: &str) -> Option<StreamMessage>;
+    async fn stream_read(&mut self, protocol: &str) -> Option<(NodeId, StreamMessage)>;
+    async fn stream_write(
+        &mut self,
+        message: StreamMessage,
+        nodes: &[NodeId],
+        eos: bool,
+    ) -> Result<()>;
 
     async fn close(&mut self) -> Result<()>;
 }

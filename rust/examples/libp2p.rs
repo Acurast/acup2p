@@ -1,4 +1,4 @@
-use acup2p::base::types::{Event, Identity, NodeId, OutboundProtocolMessage};
+use acup2p::base::types::{Event, Identity, NodeId, OutboundMessage};
 use acup2p::types::connection::ReconnectPolicy;
 use acup2p::utils::bytes::FitIntoArr;
 use acup2p::{libp2p, Config, Node};
@@ -64,7 +64,7 @@ where
             node: receiver,
             message,
         }) => {
-            let request = OutboundProtocolMessage::new_request(
+            let request = OutboundMessage::new_request(
                 PROTOCOL_ECHO.to_string(),
                 message.as_bytes().to_vec(),
             );
@@ -95,7 +95,7 @@ where
                 Ok(text) => {
                     println!("echo request from {sender:?} ({text})");
                     let response = request.bytes.clone();
-                    let response = OutboundProtocolMessage::new_response(request, response);
+                    let response = OutboundMessage::new_response(request, response);
                     if let Err(err) = node.send_message(response, &[sender]).await {
                         println!("error: {err:?}");
                     };

@@ -1,7 +1,5 @@
 use std::fmt;
 
-use super::NodeId;
-
 macro_rules! protocol_message {
     ($name:ident) => {
         #[cfg_attr(
@@ -63,14 +61,14 @@ type InboundRequestId = String;
 type InboundResponseId = String;
 type OutboundResponseId = InboundRequestId;
 
-protocol_message!(InboundProtocolRequest {
+protocol_message!(InboundRequest {
     id: InboundRequestId
 });
-protocol_message!(InboundProtocolResponse {
+protocol_message!(InboundResponse {
     id: InboundResponseId
 });
-protocol_message!(OutboundProtocolRequest);
-protocol_message!(OutboundProtocolResponse {
+protocol_message!(OutboundRequest);
+protocol_message!(OutboundResponse {
     id: OutboundResponseId
 });
 
@@ -82,18 +80,18 @@ protocol_message!(OutboundProtocolResponse {
     not(any(target_os = "android", target_os = "ios")),
     derive(Debug, Clone)
 )]
-pub enum OutboundProtocolMessage {
-    Request(OutboundProtocolRequest),
-    Response(OutboundProtocolResponse),
+pub enum OutboundMessage {
+    Request(OutboundRequest),
+    Response(OutboundResponse),
 }
 
-impl OutboundProtocolMessage {
+impl OutboundMessage {
     pub fn new_request(protocol: String, bytes: Vec<u8>) -> Self {
-        Self::Request(OutboundProtocolRequest { protocol, bytes })
+        Self::Request(OutboundRequest { protocol, bytes })
     }
 
-    pub fn new_response(request: InboundProtocolRequest, bytes: Vec<u8>) -> Self {
-        Self::Response(OutboundProtocolResponse {
+    pub fn new_response(request: InboundRequest, bytes: Vec<u8>) -> Self {
+        Self::Response(OutboundResponse {
             protocol: request.protocol,
             bytes,
             id: request.id,
@@ -101,18 +99,13 @@ impl OutboundProtocolMessage {
     }
 }
 
-impl fmt::Display for OutboundProtocolMessage {
+impl fmt::Display for OutboundMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OutboundProtocolMessage::Request(message) => write!(f, "Request({message})"),
-            OutboundProtocolMessage::Response(message) => write!(f, "Response({message})"),
+            OutboundMessage::Request(message) => write!(f, "Request({message})"),
+            OutboundMessage::Response(message) => write!(f, "Response({message})"),
         }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct StreamMessage {
-    pub protocol: String,
-    pub sender: NodeId,
-    pub bytes: Vec<u8>,
-}
+protocol_message!(StreamMessage);

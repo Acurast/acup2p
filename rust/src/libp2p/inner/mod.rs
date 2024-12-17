@@ -63,7 +63,6 @@ impl NodeInner {
     pub(super) async fn new(
         event_tx: Sender<Event>,
         intent_rx: Receiver<Intent>,
-        stream_rx: HashMap<Arc<String>, Arc<Mutex<Sender<StreamMessage>>>>,
         config: base::Config<'_>,
     ) -> Result<Self> {
         let security_upgrade = (tls::Config::new, noise::Config::new);
@@ -117,21 +116,15 @@ impl NodeInner {
         let streams = config
             .stream_protocols
             .iter()
-            .filter_map(|(p, c)| {
+            .map(|(p, c)| {
                 let protocol = Arc::new((*p).to_owned());
-                let tx = stream_rx.get(&protocol);
-
-                tx.map(|tx| (protocol, c.read_buffer_size, tx))
-            })
-            .map(|(p, buffer_size, tx)| {
                 let control = StreamControl::new(
-                    p.clone(),
-                    buffer_size,
-                    tx.clone(),
+                    protocol.clone(),
+                    c.read_buffer_size,
                     &swarm.behaviour().stream,
                 )?;
 
-                Ok((p, control))
+                Ok((protocol, control))
             })
             .collect::<Result<_, stream::Error>>()?;
 
@@ -180,13 +173,18 @@ impl NodeInner {
         })
     }
 
-    pub(super) async fn start(&mut self) {
+    pub(super) async fn start(
+        &mut self,
+        incoming_stream_tx: &HashMap<Arc<String>, Arc<Mutex<Sender<StreamMessage>>>>,
+        outgoing_stream_rx: &HashMap<Arc<String>, Arc<Mutex<Receiver<StreamMessage>>>>,
+    ) {
         if let Err(e) = self.listen() {
             self.notify_error(e.to_string()).await;
             return;
         }
 
-        self.open_incoming_streams();
+        self.open_incoming_streams(incoming_stream_tx);
+        self.subscribe_outgoing_streams(outgoing_stream_rx);
 
         let mut swarm_closed = false;
         let mut cmd_closed = false;
