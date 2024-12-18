@@ -6,11 +6,13 @@ mod node;
 mod relay;
 
 use async_trait::async_trait;
+use futures::stream;
 use futures::Stream;
 use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
+use std::task::Poll;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
 use tracing::level_filters::LevelFilter;
@@ -126,30 +128,35 @@ impl base::Node for Node {
         Ok(())
     }
 
-    fn next_incoming_stream(
+    fn incoming_streams(
         &mut self,
         protocol: &str,
-    ) -> impl Future<Output = Option<(base::types::NodeId, Box<dyn base::stream::IncomingStream>)>>
-           + Send
-           + 'static {
+    ) -> impl Stream<Item = (base::types::NodeId, Box<dyn base::stream::IncomingStream>)> + Send + Unpin + 'static {
         let rx = self
             .incoming_stream_rx
             .get_mut(&Arc::new(protocol.to_owned()))
             .map(|rx| rx.clone());
 
-        async move {
-            let rx = match rx {
-                Some(rx) => rx,
-                None => return None,
-            };
+        stream::poll_fn(move |cx| {
+            match &rx {
+                Some(rx) => {
+                    let mut rx = match rx.try_lock() {
+                        Ok(guard) => guard,
+                        Err(_) => {
+                            cx.waker().wake_by_ref();
+                            return Poll::Pending;
+                        }
+                    };
 
-            let option = rx.lock().await.recv().await;
-
-            option
-        }
+    
+                    rx.poll_recv(cx)
+                },
+                None => Poll::Ready(None),
+            }
+        })
     }
 
-    fn open_outgoing_stream(
+    fn outgoing_stream(
         &mut self,
         protocol: &str,
         node: base::types::NodeId,

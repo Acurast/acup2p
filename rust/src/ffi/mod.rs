@@ -54,18 +54,25 @@ where
                         }
                     }
                     Some(Intent::OpenOutgoingStream { protocol, node, producer, consumer }) => {
-                        match self.node.open_outgoing_stream(&protocol.as_str(), node.clone()).await {
-                            Ok(stream) => {
-                                let stream = Arc::new(Mutex::new(stream));
-                                let write_future = write_stream(stream.clone(), producer);
-                                let read_future = read_stream(stream.clone(), consumer);
+                        let handler = handler.clone();
+                        let open_stream = self.node.outgoing_stream(&protocol.as_str(), node.clone());
+                        let open_future = async move {
+                            match open_stream.await {
+                                Ok(stream) => {
+                                    let stream = Arc::new(Mutex::new(stream));
+                                    let write_future = write_stream(stream.clone(), producer);
+                                    let read_future = read_stream(stream.clone(), consumer);
 
-                                if cfg!(feature = "tokio") {
-                                    tokio::spawn(write_future);
-                                    tokio::spawn(read_future);
-                                }
-                            },
-                            Err(e) => handler.on_error(e).await,
+                                    if cfg!(feature = "tokio") {
+                                        tokio::spawn(write_future);
+                                        tokio::spawn(read_future);
+                                    }
+                                },
+                                Err(e) => handler.on_error(e).await,
+                            }
+                        };
+                        if cfg!(feature = "tokio") {
+                            tokio::spawn(open_future);
                         }
                     }
                     Some(Intent::Close) | None => {
@@ -85,9 +92,9 @@ where
         for handler in incoming_stream_handlers.into_iter() {
             let protocol = handler.protocol();
 
-            let next_stream = self.node.next_incoming_stream(&protocol.as_str());
+            let mut next_stream = self.node.incoming_streams(&protocol.as_str());
             let subscribe_future = async move {
-                if let Some((node, stream)) = next_stream.await {
+                while let Some((node, stream)) = next_stream.next().await {
                     handler.create_stream(node).await;
 
                     let consumer = handler.consumer();

@@ -28,11 +28,11 @@ pub trait Node: Stream<Item = Event> {
         nodes: &[NodeId],
     ) -> Result<()>;
 
-    fn next_incoming_stream(
+    fn incoming_streams(
         &mut self,
         protocol: &str,
-    ) -> impl Future<Output = Option<(NodeId, Box<dyn IncomingStream>)>> + Send + 'static;
-    fn open_outgoing_stream(
+    ) -> impl Stream<Item = (NodeId, Box<dyn IncomingStream>)> + Send + Unpin + 'static;
+    fn outgoing_stream(
         &mut self,
         protocol: &str,
         node: NodeId,
