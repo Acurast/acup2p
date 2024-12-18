@@ -3049,7 +3049,7 @@ public object FfiConverterTypeConfig: FfiConverterRustBuffer<Config> {
 
 
 
-data class InboundRequest (
+data class InboundProtocolRequest (
     var `protocol`: kotlin.String, 
     var `bytes`: kotlin.ByteArray, 
     var `id`: kotlin.String
@@ -3061,22 +3061,22 @@ data class InboundRequest (
 /**
  * @suppress
  */
-public object FfiConverterTypeInboundRequest: FfiConverterRustBuffer<InboundRequest> {
-    override fun read(buf: ByteBuffer): InboundRequest {
-        return InboundRequest(
+public object FfiConverterTypeInboundProtocolRequest: FfiConverterRustBuffer<InboundProtocolRequest> {
+    override fun read(buf: ByteBuffer): InboundProtocolRequest {
+        return InboundProtocolRequest(
             FfiConverterString.read(buf),
             FfiConverterByteArray.read(buf),
             FfiConverterString.read(buf),
         )
     }
 
-    override fun allocationSize(value: InboundRequest) = (
+    override fun allocationSize(value: InboundProtocolRequest) = (
             FfiConverterString.allocationSize(value.`protocol`) +
             FfiConverterByteArray.allocationSize(value.`bytes`) +
             FfiConverterString.allocationSize(value.`id`)
     )
 
-    override fun write(value: InboundRequest, buf: ByteBuffer) {
+    override fun write(value: InboundProtocolRequest, buf: ByteBuffer) {
             FfiConverterString.write(value.`protocol`, buf)
             FfiConverterByteArray.write(value.`bytes`, buf)
             FfiConverterString.write(value.`id`, buf)
@@ -3085,7 +3085,7 @@ public object FfiConverterTypeInboundRequest: FfiConverterRustBuffer<InboundRequ
 
 
 
-data class InboundResponse (
+data class InboundProtocolResponse (
     var `protocol`: kotlin.String, 
     var `bytes`: kotlin.ByteArray, 
     var `id`: kotlin.String
@@ -3097,22 +3097,22 @@ data class InboundResponse (
 /**
  * @suppress
  */
-public object FfiConverterTypeInboundResponse: FfiConverterRustBuffer<InboundResponse> {
-    override fun read(buf: ByteBuffer): InboundResponse {
-        return InboundResponse(
+public object FfiConverterTypeInboundProtocolResponse: FfiConverterRustBuffer<InboundProtocolResponse> {
+    override fun read(buf: ByteBuffer): InboundProtocolResponse {
+        return InboundProtocolResponse(
             FfiConverterString.read(buf),
             FfiConverterByteArray.read(buf),
             FfiConverterString.read(buf),
         )
     }
 
-    override fun allocationSize(value: InboundResponse) = (
+    override fun allocationSize(value: InboundProtocolResponse) = (
             FfiConverterString.allocationSize(value.`protocol`) +
             FfiConverterByteArray.allocationSize(value.`bytes`) +
             FfiConverterString.allocationSize(value.`id`)
     )
 
-    override fun write(value: InboundResponse, buf: ByteBuffer) {
+    override fun write(value: InboundProtocolResponse, buf: ByteBuffer) {
             FfiConverterString.write(value.`protocol`, buf)
             FfiConverterByteArray.write(value.`bytes`, buf)
             FfiConverterString.write(value.`id`, buf)
@@ -3121,7 +3121,7 @@ public object FfiConverterTypeInboundResponse: FfiConverterRustBuffer<InboundRes
 
 
 
-data class OutboundRequest (
+data class OutboundProtocolRequest (
     var `protocol`: kotlin.String, 
     var `bytes`: kotlin.ByteArray
 ) {
@@ -3132,20 +3132,20 @@ data class OutboundRequest (
 /**
  * @suppress
  */
-public object FfiConverterTypeOutboundRequest: FfiConverterRustBuffer<OutboundRequest> {
-    override fun read(buf: ByteBuffer): OutboundRequest {
-        return OutboundRequest(
+public object FfiConverterTypeOutboundProtocolRequest: FfiConverterRustBuffer<OutboundProtocolRequest> {
+    override fun read(buf: ByteBuffer): OutboundProtocolRequest {
+        return OutboundProtocolRequest(
             FfiConverterString.read(buf),
             FfiConverterByteArray.read(buf),
         )
     }
 
-    override fun allocationSize(value: OutboundRequest) = (
+    override fun allocationSize(value: OutboundProtocolRequest) = (
             FfiConverterString.allocationSize(value.`protocol`) +
             FfiConverterByteArray.allocationSize(value.`bytes`)
     )
 
-    override fun write(value: OutboundRequest, buf: ByteBuffer) {
+    override fun write(value: OutboundProtocolRequest, buf: ByteBuffer) {
             FfiConverterString.write(value.`protocol`, buf)
             FfiConverterByteArray.write(value.`bytes`, buf)
     }
@@ -3153,7 +3153,7 @@ public object FfiConverterTypeOutboundRequest: FfiConverterRustBuffer<OutboundRe
 
 
 
-data class OutboundResponse (
+data class OutboundProtocolResponse (
     var `protocol`: kotlin.String, 
     var `bytes`: kotlin.ByteArray, 
     var `id`: kotlin.String
@@ -3165,22 +3165,22 @@ data class OutboundResponse (
 /**
  * @suppress
  */
-public object FfiConverterTypeOutboundResponse: FfiConverterRustBuffer<OutboundResponse> {
-    override fun read(buf: ByteBuffer): OutboundResponse {
-        return OutboundResponse(
+public object FfiConverterTypeOutboundProtocolResponse: FfiConverterRustBuffer<OutboundProtocolResponse> {
+    override fun read(buf: ByteBuffer): OutboundProtocolResponse {
+        return OutboundProtocolResponse(
             FfiConverterString.read(buf),
             FfiConverterByteArray.read(buf),
             FfiConverterString.read(buf),
         )
     }
 
-    override fun allocationSize(value: OutboundResponse) = (
+    override fun allocationSize(value: OutboundProtocolResponse) = (
             FfiConverterString.allocationSize(value.`protocol`) +
             FfiConverterByteArray.allocationSize(value.`bytes`) +
             FfiConverterString.allocationSize(value.`id`)
     )
 
-    override fun write(value: OutboundResponse, buf: ByteBuffer) {
+    override fun write(value: OutboundProtocolResponse, buf: ByteBuffer) {
             FfiConverterString.write(value.`protocol`, buf)
             FfiConverterByteArray.write(value.`bytes`, buf)
             FfiConverterString.write(value.`id`, buf)
@@ -3208,25 +3208,25 @@ sealed class Event {
     
     data class InboundRequest(
         val `sender`: NodeId, 
-        val `request`: InboundRequest) : Event() {
+        val `request`: InboundProtocolRequest) : Event() {
         companion object
     }
     
     data class InboundResponse(
         val `sender`: NodeId, 
-        val `response`: InboundResponse) : Event() {
+        val `response`: InboundProtocolResponse) : Event() {
         companion object
     }
     
     data class OutboundRequest(
         val `receiver`: NodeId, 
-        val `request`: OutboundRequest) : Event() {
+        val `request`: OutboundProtocolRequest) : Event() {
         companion object
     }
     
     data class OutboundResponse(
         val `receiver`: NodeId, 
-        val `response`: OutboundResponse) : Event() {
+        val `response`: OutboundProtocolResponse) : Event() {
         companion object
     }
     
@@ -3257,19 +3257,19 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 )
             4 -> Event.InboundRequest(
                 FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeInboundRequest.read(buf),
+                FfiConverterTypeInboundProtocolRequest.read(buf),
                 )
             5 -> Event.InboundResponse(
                 FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeInboundResponse.read(buf),
+                FfiConverterTypeInboundProtocolResponse.read(buf),
                 )
             6 -> Event.OutboundRequest(
                 FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeOutboundRequest.read(buf),
+                FfiConverterTypeOutboundProtocolRequest.read(buf),
                 )
             7 -> Event.OutboundResponse(
                 FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeOutboundResponse.read(buf),
+                FfiConverterTypeOutboundProtocolResponse.read(buf),
                 )
             8 -> Event.Error(
                 FfiConverterString.read(buf),
@@ -3305,7 +3305,7 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             (
                 4UL
                 + FfiConverterTypeNodeId.allocationSize(value.`sender`)
-                + FfiConverterTypeInboundRequest.allocationSize(value.`request`)
+                + FfiConverterTypeInboundProtocolRequest.allocationSize(value.`request`)
             )
         }
         is Event.InboundResponse -> {
@@ -3313,7 +3313,7 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             (
                 4UL
                 + FfiConverterTypeNodeId.allocationSize(value.`sender`)
-                + FfiConverterTypeInboundResponse.allocationSize(value.`response`)
+                + FfiConverterTypeInboundProtocolResponse.allocationSize(value.`response`)
             )
         }
         is Event.OutboundRequest -> {
@@ -3321,7 +3321,7 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             (
                 4UL
                 + FfiConverterTypeNodeId.allocationSize(value.`receiver`)
-                + FfiConverterTypeOutboundRequest.allocationSize(value.`request`)
+                + FfiConverterTypeOutboundProtocolRequest.allocationSize(value.`request`)
             )
         }
         is Event.OutboundResponse -> {
@@ -3329,7 +3329,7 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             (
                 4UL
                 + FfiConverterTypeNodeId.allocationSize(value.`receiver`)
-                + FfiConverterTypeOutboundResponse.allocationSize(value.`response`)
+                + FfiConverterTypeOutboundProtocolResponse.allocationSize(value.`response`)
             )
         }
         is Event.Error -> {
@@ -3361,25 +3361,25 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             is Event.InboundRequest -> {
                 buf.putInt(4)
                 FfiConverterTypeNodeId.write(value.`sender`, buf)
-                FfiConverterTypeInboundRequest.write(value.`request`, buf)
+                FfiConverterTypeInboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.InboundResponse -> {
                 buf.putInt(5)
                 FfiConverterTypeNodeId.write(value.`sender`, buf)
-                FfiConverterTypeInboundResponse.write(value.`response`, buf)
+                FfiConverterTypeInboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
             is Event.OutboundRequest -> {
                 buf.putInt(6)
                 FfiConverterTypeNodeId.write(value.`receiver`, buf)
-                FfiConverterTypeOutboundRequest.write(value.`request`, buf)
+                FfiConverterTypeOutboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.OutboundResponse -> {
                 buf.putInt(7)
                 FfiConverterTypeNodeId.write(value.`receiver`, buf)
-                FfiConverterTypeOutboundResponse.write(value.`response`, buf)
+                FfiConverterTypeOutboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
             is Event.Error -> {
@@ -3492,7 +3492,7 @@ sealed class Intent: Disposable  {
     }
     
     data class SendMessage(
-        val `message`: OutboundMessage, 
+        val `message`: OutboundProtocolMessage, 
         val `nodes`: List<NodeId>) : Intent() {
         companion object
     }
@@ -3566,7 +3566,7 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 FfiConverterSequenceTypeNodeId.read(buf),
                 )
             3 -> Intent.SendMessage(
-                FfiConverterTypeOutboundMessage.read(buf),
+                FfiConverterTypeOutboundProtocolMessage.read(buf),
                 FfiConverterSequenceTypeNodeId.read(buf),
                 )
             4 -> Intent.OpenOutgoingStream(
@@ -3599,7 +3599,7 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeOutboundMessage.allocationSize(value.`message`)
+                + FfiConverterTypeOutboundProtocolMessage.allocationSize(value.`message`)
                 + FfiConverterSequenceTypeNodeId.allocationSize(value.`nodes`)
             )
         }
@@ -3635,7 +3635,7 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
             }
             is Intent.SendMessage -> {
                 buf.putInt(3)
-                FfiConverterTypeOutboundMessage.write(value.`message`, buf)
+                FfiConverterTypeOutboundProtocolMessage.write(value.`message`, buf)
                 FfiConverterSequenceTypeNodeId.write(value.`nodes`, buf)
                 Unit
             }
@@ -3763,15 +3763,15 @@ public object FfiConverterTypeNodeId : FfiConverterRustBuffer<NodeId>{
 
 
 
-sealed class OutboundMessage {
+sealed class OutboundProtocolMessage {
     
     data class Request(
-        val v1: OutboundRequest) : OutboundMessage() {
+        val v1: OutboundProtocolRequest) : OutboundProtocolMessage() {
         companion object
     }
     
     data class Response(
-        val v1: OutboundResponse) : OutboundMessage() {
+        val v1: OutboundProtocolResponse) : OutboundProtocolMessage() {
         companion object
     }
     
@@ -3783,46 +3783,46 @@ sealed class OutboundMessage {
 /**
  * @suppress
  */
-public object FfiConverterTypeOutboundMessage : FfiConverterRustBuffer<OutboundMessage>{
-    override fun read(buf: ByteBuffer): OutboundMessage {
+public object FfiConverterTypeOutboundProtocolMessage : FfiConverterRustBuffer<OutboundProtocolMessage>{
+    override fun read(buf: ByteBuffer): OutboundProtocolMessage {
         return when(buf.getInt()) {
-            1 -> OutboundMessage.Request(
-                FfiConverterTypeOutboundRequest.read(buf),
+            1 -> OutboundProtocolMessage.Request(
+                FfiConverterTypeOutboundProtocolRequest.read(buf),
                 )
-            2 -> OutboundMessage.Response(
-                FfiConverterTypeOutboundResponse.read(buf),
+            2 -> OutboundProtocolMessage.Response(
+                FfiConverterTypeOutboundProtocolResponse.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: OutboundMessage) = when(value) {
-        is OutboundMessage.Request -> {
+    override fun allocationSize(value: OutboundProtocolMessage) = when(value) {
+        is OutboundProtocolMessage.Request -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeOutboundRequest.allocationSize(value.v1)
+                + FfiConverterTypeOutboundProtocolRequest.allocationSize(value.v1)
             )
         }
-        is OutboundMessage.Response -> {
+        is OutboundProtocolMessage.Response -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterTypeOutboundResponse.allocationSize(value.v1)
+                + FfiConverterTypeOutboundProtocolResponse.allocationSize(value.v1)
             )
         }
     }
 
-    override fun write(value: OutboundMessage, buf: ByteBuffer) {
+    override fun write(value: OutboundProtocolMessage, buf: ByteBuffer) {
         when(value) {
-            is OutboundMessage.Request -> {
+            is OutboundProtocolMessage.Request -> {
                 buf.putInt(1)
-                FfiConverterTypeOutboundRequest.write(value.v1, buf)
+                FfiConverterTypeOutboundProtocolRequest.write(value.v1, buf)
                 Unit
             }
-            is OutboundMessage.Response -> {
+            is OutboundProtocolMessage.Response -> {
                 buf.putInt(2)
-                FfiConverterTypeOutboundResponse.write(value.v1, buf)
+                FfiConverterTypeOutboundProtocolResponse.write(value.v1, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }

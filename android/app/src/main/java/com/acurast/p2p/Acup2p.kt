@@ -15,12 +15,12 @@ import kotlinx.coroutines.launch
 import uniffi.acup2p.Config
 import uniffi.acup2p.Event
 import uniffi.acup2p.Identity
-import uniffi.acup2p.InboundRequest
+import uniffi.acup2p.InboundProtocolRequest
 import uniffi.acup2p.Intent
 import uniffi.acup2p.NodeId
-import uniffi.acup2p.OutboundMessage
-import uniffi.acup2p.OutboundRequest
-import uniffi.acup2p.OutboundResponse
+import uniffi.acup2p.OutboundProtocolMessage
+import uniffi.acup2p.OutboundProtocolRequest
+import uniffi.acup2p.OutboundProtocolResponse
 import uniffi.acup2p.SecretKey
 import uniffi.acup2p.StreamConsumer
 import uniffi.acup2p.StreamProducer
@@ -58,15 +58,15 @@ public class Acup2p(coroutineContext: CoroutineContext, config: Config = Config.
         handler.intents.send(Intent.Disconnect(nodes))
     }
 
-    public suspend fun sendMessage(request: OutboundRequest, nodes: List<NodeId>) {
-        sendMessage(OutboundMessage.Request(request), nodes)
+    public suspend fun sendMessage(request: OutboundProtocolRequest, nodes: List<NodeId>) {
+        sendMessage(OutboundProtocolMessage.Request(request), nodes)
     }
 
-    public suspend fun sendMessage(response: OutboundResponse, nodes: List<NodeId>) {
-        sendMessage(OutboundMessage.Response(response), nodes)
+    public suspend fun sendMessage(response: OutboundProtocolResponse, nodes: List<NodeId>) {
+        sendMessage(OutboundProtocolMessage.Response(response), nodes)
     }
 
-    public suspend fun sendMessage(message: OutboundMessage, nodes: List<NodeId>) {
+    public suspend fun sendMessage(message: OutboundProtocolMessage, nodes: List<NodeId>) {
         handler.intents.send(Intent.SendMessage(message, nodes))
     }
 
@@ -130,5 +130,5 @@ public val Config.Companion.Default: Config
 public fun Identity.Companion.Ed25519(secretKey: ByteArray): Identity.Keypair =
     Identity.Keypair(SecretKey.Ed25519(secretKey))
 
-public fun OutboundResponse.Companion.fromRequest(request: InboundRequest, bytes: ByteArray): OutboundResponse =
-    OutboundResponse(request.protocol, bytes, request.id)
+public fun OutboundProtocolResponse.Companion.fromRequest(request: InboundProtocolRequest, bytes: ByteArray): OutboundProtocolResponse =
+    OutboundProtocolResponse(request.protocol, bytes, request.id)

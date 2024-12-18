@@ -7,10 +7,12 @@ import uniffi.acup2p.StreamWrite
 
 public interface ReadBytes {
     public suspend fun read(n: UInt): ByteArray?
+    public suspend fun close()
 }
 
 public interface WriteBytes {
-    public suspend fun write(bytes: ByteArray?)
+    public suspend fun write(bytes: ByteArray): UInt
+    public suspend fun close()
 }
 
 public class Stream internal constructor(
@@ -20,6 +22,11 @@ public class Stream internal constructor(
     private val producer: Producer,
 ) : ReadBytes by consumer, WriteBytes by producer {
 
+    override suspend fun close() {
+        consumer.close()
+        producer.close()
+    }
+
     internal class Consumer : uniffi.acup2p.StreamConsumer, ReadBytes {
         private val read: Channel<UInt> = Channel(Channel.UNLIMITED)
         private val bytes: Channel<Result<ByteArray>> = Channel(Channel.UNLIMITED)
@@ -28,6 +35,10 @@ public class Stream internal constructor(
             read.send(n)
 
             return bytes.receiveIfActive()?.getOrThrow()
+        }
+
+        override suspend fun close() {
+            read.close()
         }
 
         override suspend fun nextRead(): UInt? =
@@ -43,13 +54,17 @@ public class Stream internal constructor(
     }
 
     internal class Producer : uniffi.acup2p.StreamProducer, WriteBytes {
-        private val bytes: Channel<ByteArray?> = Channel(Channel.UNLIMITED)
+        private val bytes: Channel<ByteArray> = Channel(Channel.UNLIMITED)
         private val result: Channel<Result<Unit>> = Channel(Channel.UNLIMITED)
 
-        override suspend fun write(bytes: ByteArray?) {
+        override suspend fun write(bytes: ByteArray): UInt {
             this.bytes.send(bytes)
 
-            result.receiveIfActive()?.getOrThrow()
+            return result.receiveIfActive()?.getOrThrow()?.let { bytes.size.toUInt() } ?: 0U
+        }
+
+        override suspend fun close() {
+            bytes.close()
         }
 
         override suspend fun nextBytes(): ByteArray? =
@@ -63,6 +78,8 @@ public class Stream internal constructor(
             }
         }
     }
+
+    public companion object
 }
 
 public class StreamException(message: String) : Exception(message)

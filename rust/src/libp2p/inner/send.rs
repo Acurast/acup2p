@@ -2,7 +2,7 @@ use std::fmt;
 
 use libp2p::{Multiaddr, PeerId};
 
-use crate::base::types::OutboundMessage;
+use crate::base::types::OutboundProtocolMessage;
 use crate::types::{MaybeFrom, Result};
 
 use super::super::message;
@@ -13,14 +13,14 @@ impl NodeInner {
     pub(super) async fn send_direct_message(
         &mut self,
         node: NodeId,
-        message: OutboundMessage,
+        message: OutboundProtocolMessage,
     ) -> Result<(), Error> {
         match message {
-            OutboundMessage::Request(message) => {
+            OutboundProtocolMessage::Request(message) => {
                 self.send_request(&node, &message.protocol, &message.bytes)?;
                 self.notify_outbound_request(&node, message).await;
             }
-            OutboundMessage::Response(message) => {
+            OutboundProtocolMessage::Response(message) => {
                 self.send_response(&node, &message.protocol, &message.bytes, &message.id)?;
                 self.notify_outbound_response(&node, message).await;
             }

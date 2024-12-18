@@ -62,14 +62,14 @@ pub type InboundResponseId = String;
 pub type OutboundRequestId = String;
 pub type OutboundResponseId = InboundRequestId;
 
-protocol_message!(InboundRequest {
+protocol_message!(InboundProtocolRequest {
     id: InboundRequestId
 });
-protocol_message!(InboundResponse {
+protocol_message!(InboundProtocolResponse {
     id: InboundResponseId
 });
-protocol_message!(OutboundRequest);
-protocol_message!(OutboundResponse {
+protocol_message!(OutboundProtocolRequest);
+protocol_message!(OutboundProtocolResponse {
     id: OutboundResponseId
 });
 
@@ -81,18 +81,18 @@ protocol_message!(OutboundResponse {
     not(any(target_os = "android", target_os = "ios")),
     derive(Debug, Clone)
 )]
-pub enum OutboundMessage {
-    Request(OutboundRequest),
-    Response(OutboundResponse),
+pub enum OutboundProtocolMessage {
+    Request(OutboundProtocolRequest),
+    Response(OutboundProtocolResponse),
 }
 
-impl OutboundMessage {
+impl OutboundProtocolMessage {
     pub fn new_request(protocol: String, bytes: Vec<u8>) -> Self {
-        Self::Request(OutboundRequest { protocol, bytes })
+        Self::Request(OutboundProtocolRequest { protocol, bytes })
     }
 
-    pub fn new_response(request: InboundRequest, bytes: Vec<u8>) -> Self {
-        Self::Response(OutboundResponse {
+    pub fn new_response(request: InboundProtocolRequest, bytes: Vec<u8>) -> Self {
+        Self::Response(OutboundProtocolResponse {
             protocol: request.protocol,
             bytes,
             id: request.id,
@@ -100,11 +100,11 @@ impl OutboundMessage {
     }
 }
 
-impl fmt::Display for OutboundMessage {
+impl fmt::Display for OutboundProtocolMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OutboundMessage::Request(message) => write!(f, "Request({message})"),
-            OutboundMessage::Response(message) => write!(f, "Response({message})"),
+            OutboundProtocolMessage::Request(message) => write!(f, "Request({message})"),
+            OutboundProtocolMessage::Response(message) => write!(f, "Response({message})"),
         }
     }
 }

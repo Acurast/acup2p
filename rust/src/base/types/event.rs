@@ -1,6 +1,9 @@
 use std::fmt;
 
-use super::message::{InboundRequest, InboundResponse, OutboundRequest, OutboundResponse};
+use super::message::{
+    InboundProtocolRequest, InboundProtocolResponse, OutboundProtocolRequest,
+    OutboundProtocolResponse,
+};
 
 use super::node::NodeId;
 
@@ -26,20 +29,20 @@ pub enum Event {
 
     InboundRequest {
         sender: NodeId,
-        request: InboundRequest,
+        request: InboundProtocolRequest,
     },
     InboundResponse {
         sender: NodeId,
-        response: InboundResponse,
+        response: InboundProtocolResponse,
     },
 
     OutboundRequest {
         receiver: NodeId,
-        request: OutboundRequest,
+        request: OutboundProtocolRequest,
     },
     OutboundResponse {
         receiver: NodeId,
-        response: OutboundResponse,
+        response: OutboundProtocolResponse,
     },
 
     Error {

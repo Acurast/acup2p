@@ -13,7 +13,7 @@ use futures::future::FutureExt;
 use futures::lock::Mutex;
 use futures::{select, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt};
 
-use crate::base::types::OutboundMessage;
+use crate::base::types::OutboundProtocolMessage;
 use crate::base::{self, Node};
 use crate::types::Result;
 
@@ -144,6 +144,7 @@ where
             Err(e) => consumer.on_bytes(StreamRead::Err(e.to_string())).await,
         }
     }
+    consumer.on_bytes(StreamRead::EOS).await;
 }
 
 #[uniffi::export]
@@ -259,7 +260,7 @@ pub enum Intent {
         nodes: Vec<NodeId>,
     },
     SendMessage {
-        message: OutboundMessage,
+        message: OutboundProtocolMessage,
         nodes: Vec<NodeId>,
     },
     OpenOutgoingStream {

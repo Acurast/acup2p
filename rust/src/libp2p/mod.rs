@@ -17,7 +17,7 @@ use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 use crate::base;
-use crate::base::types::{Event, OutboundMessage};
+use crate::base::types::{Event, OutboundProtocolMessage};
 use crate::types::Result;
 
 use self::inner::NodeInner;
@@ -109,7 +109,7 @@ impl base::Node for Node {
 
     async fn send_message(
         &mut self,
-        message: OutboundMessage,
+        message: OutboundProtocolMessage,
         nodes: &[base::types::NodeId],
     ) -> Result<()> {
         for node in nodes {
@@ -236,7 +236,7 @@ impl Node {
 pub(self) enum Intent {
     DirectMessage {
         peer: NodeId,
-        message: OutboundMessage,
+        message: OutboundProtocolMessage,
     },
     OpenStream {
         peer: NodeId,
