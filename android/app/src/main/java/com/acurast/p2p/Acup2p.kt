@@ -108,17 +108,22 @@ public class Acup2p(coroutineContext: CoroutineContext, config: Config = Config.
         val streams: SharedFlow<Stream>
             get() = _streams.asSharedFlow()
 
-        override fun protocol(): String = protocol
-        override fun consumer(): StreamConsumer = Stream.Consumer()
-        override fun producer(): StreamProducer = Stream.Producer()
+        private var nextStream: Stream? = null
 
-        override suspend fun onOpen(
-            node: NodeId,
-            consumer: StreamConsumer,
-            producer: StreamProducer
-        ) {
-            _streams.emit(Stream(protocol, node, consumer as Stream.Consumer, producer as Stream.Producer))
+        override fun protocol(): String = protocol
+        override fun consumer(): StreamConsumer = nextStream?.consumer ?: failWithStreamNotInitialized()
+        override fun producer(): StreamProducer = nextStream?.producer ?: failWithStreamNotInitialized()
+
+        override suspend fun createStream(node: NodeId) {
+            nextStream = Stream(protocol, node, Stream.Consumer(), Stream.Producer())
         }
+
+        override suspend fun finalizeStream() {
+            nextStream?.let { _streams.emit(it) }
+        }
+
+        private fun failWithStreamNotInitialized(): Nothing =
+            throw IllegalStateException("Next stream not initialized, call `create_stream` first")
     }
 }
 

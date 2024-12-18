@@ -88,15 +88,15 @@ where
             let next_stream = self.node.next_incoming_stream(&protocol.as_str());
             let subscribe_future = async move {
                 if let Some((node, stream)) = next_stream.await {
+                    handler.create_stream(node).await;
+
                     let consumer = handler.consumer();
                     let producer = handler.producer();
                     let stream = Arc::new(Mutex::new(stream));
                     let read_future = read_stream(stream.clone(), consumer.clone());
                     let write_future = write_stream(stream.clone(), producer.clone());
 
-                    handler
-                        .on_open(node, consumer.clone(), producer.clone())
-                        .await;
+                    handler.finalize_stream().await;
 
                     if cfg!(feature = "tokio") {
                         tokio::spawn(read_future);
@@ -138,6 +138,7 @@ where
                 if read == 0 {
                     consumer.on_bytes(StreamRead::EOS).await;
                 } else {
+                    bytes.truncate(read);
                     consumer.on_bytes(StreamRead::Ok(bytes)).await;
                 }
             }
@@ -206,12 +207,9 @@ pub trait IncomingStreamHandler: Send + Sync + Debug {
     fn protocol(&self) -> String;
     fn consumer(&self) -> Arc<dyn StreamConsumer>;
     fn producer(&self) -> Arc<dyn StreamProducer>;
-    async fn on_open(
-        &self,
-        node: NodeId,
-        consumer: Arc<dyn StreamConsumer>,
-        producer: Arc<dyn StreamProducer>,
-    );
+
+    async fn create_stream(&self, node: NodeId);
+    async fn finalize_stream(&self);
 }
 
 #[derive(uniffi::Enum)]

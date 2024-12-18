@@ -18,8 +18,8 @@ public interface WriteBytes {
 public class Stream internal constructor(
     public val protocol: String,
     public val node: NodeId,
-    private val consumer: Consumer,
-    private val producer: Producer,
+    internal val consumer: Consumer,
+    internal val producer: Producer,
 ) : ReadBytes by consumer, WriteBytes by producer {
 
     override suspend fun close() {

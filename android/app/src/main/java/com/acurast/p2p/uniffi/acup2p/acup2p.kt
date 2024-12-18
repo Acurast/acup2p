@@ -677,7 +677,10 @@ internal interface UniffiCallbackInterfaceIncomingStreamHandlerMethod2 : com.sun
     fun callback(`uniffiHandle`: Long,`uniffiOutReturn`: PointerByReference,uniffiCallStatus: UniffiRustCallStatus,)
 }
 internal interface UniffiCallbackInterfaceIncomingStreamHandlerMethod3 : com.sun.jna.Callback {
-    fun callback(`uniffiHandle`: Long,`node`: RustBuffer.ByValue,`consumer`: Pointer,`producer`: Pointer,`uniffiFutureCallback`: UniffiForeignFutureCompleteVoid,`uniffiCallbackData`: Long,`uniffiOutReturn`: UniffiForeignFuture,)
+    fun callback(`uniffiHandle`: Long,`node`: RustBuffer.ByValue,`uniffiFutureCallback`: UniffiForeignFutureCompleteVoid,`uniffiCallbackData`: Long,`uniffiOutReturn`: UniffiForeignFuture,)
+}
+internal interface UniffiCallbackInterfaceIncomingStreamHandlerMethod4 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`uniffiFutureCallback`: UniffiForeignFutureCompleteVoid,`uniffiCallbackData`: Long,`uniffiOutReturn`: UniffiForeignFuture,)
 }
 internal interface UniffiCallbackInterfaceStreamConsumerMethod0 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`uniffiFutureCallback`: UniffiForeignFutureCompleteRustBuffer,`uniffiCallbackData`: Long,`uniffiOutReturn`: UniffiForeignFuture,)
@@ -710,27 +713,30 @@ internal open class UniffiVTableCallbackInterfaceHandler(
     }
 
 }
-@Structure.FieldOrder("protocol", "consumer", "producer", "onOpen", "uniffiFree")
+@Structure.FieldOrder("protocol", "consumer", "producer", "createStream", "finalizeStream", "uniffiFree")
 internal open class UniffiVTableCallbackInterfaceIncomingStreamHandler(
     @JvmField internal var `protocol`: UniffiCallbackInterfaceIncomingStreamHandlerMethod0? = null,
     @JvmField internal var `consumer`: UniffiCallbackInterfaceIncomingStreamHandlerMethod1? = null,
     @JvmField internal var `producer`: UniffiCallbackInterfaceIncomingStreamHandlerMethod2? = null,
-    @JvmField internal var `onOpen`: UniffiCallbackInterfaceIncomingStreamHandlerMethod3? = null,
+    @JvmField internal var `createStream`: UniffiCallbackInterfaceIncomingStreamHandlerMethod3? = null,
+    @JvmField internal var `finalizeStream`: UniffiCallbackInterfaceIncomingStreamHandlerMethod4? = null,
     @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
 ) : Structure() {
     class UniffiByValue(
         `protocol`: UniffiCallbackInterfaceIncomingStreamHandlerMethod0? = null,
         `consumer`: UniffiCallbackInterfaceIncomingStreamHandlerMethod1? = null,
         `producer`: UniffiCallbackInterfaceIncomingStreamHandlerMethod2? = null,
-        `onOpen`: UniffiCallbackInterfaceIncomingStreamHandlerMethod3? = null,
+        `createStream`: UniffiCallbackInterfaceIncomingStreamHandlerMethod3? = null,
+        `finalizeStream`: UniffiCallbackInterfaceIncomingStreamHandlerMethod4? = null,
         `uniffiFree`: UniffiCallbackInterfaceFree? = null,
-    ): UniffiVTableCallbackInterfaceIncomingStreamHandler(`protocol`,`consumer`,`producer`,`onOpen`,`uniffiFree`,), Structure.ByValue
+    ): UniffiVTableCallbackInterfaceIncomingStreamHandler(`protocol`,`consumer`,`producer`,`createStream`,`finalizeStream`,`uniffiFree`,), Structure.ByValue
 
    internal fun uniffiSetValue(other: UniffiVTableCallbackInterfaceIncomingStreamHandler) {
         `protocol` = other.`protocol`
         `consumer` = other.`consumer`
         `producer` = other.`producer`
-        `onOpen` = other.`onOpen`
+        `createStream` = other.`createStream`
+        `finalizeStream` = other.`finalizeStream`
         `uniffiFree` = other.`uniffiFree`
     }
 
@@ -773,6 +779,8 @@ internal open class UniffiVTableCallbackInterfaceStreamProducer(
     }
 
 }
+
+
 
 
 
@@ -912,7 +920,9 @@ internal interface UniffiLib : Library {
     ): Pointer
     fun uniffi_acup2p_fn_method_incomingstreamhandler_producer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_on_open(`ptr`: Pointer,`node`: RustBuffer.ByValue,`consumer`: Pointer,`producer`: Pointer,
+    fun uniffi_acup2p_fn_method_incomingstreamhandler_create_stream(`ptr`: Pointer,`node`: RustBuffer.ByValue,
+    ): Long
+    fun uniffi_acup2p_fn_method_incomingstreamhandler_finalize_stream(`ptr`: Pointer,
     ): Long
     fun uniffi_acup2p_fn_clone_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
@@ -1064,7 +1074,9 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_acup2p_checksum_method_incomingstreamhandler_producer(
     ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_on_open(
+    fun uniffi_acup2p_checksum_method_incomingstreamhandler_create_stream(
+    ): Short
+    fun uniffi_acup2p_checksum_method_incomingstreamhandler_finalize_stream(
     ): Short
     fun uniffi_acup2p_checksum_method_streamconsumer_next_read(
     ): Short
@@ -1112,7 +1124,10 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_acup2p_checksum_method_incomingstreamhandler_producer() != 39442.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_acup2p_checksum_method_incomingstreamhandler_on_open() != 54770.toShort()) {
+    if (lib.uniffi_acup2p_checksum_method_incomingstreamhandler_create_stream() != 50342.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_acup2p_checksum_method_incomingstreamhandler_finalize_stream() != 23057.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_acup2p_checksum_method_streamconsumer_next_read() != 48395.toShort()) {
@@ -2008,7 +2023,9 @@ public interface IncomingStreamHandler {
     
     fun `producer`(): StreamProducer
     
-    suspend fun `onOpen`(`node`: NodeId, `consumer`: StreamConsumer, `producer`: StreamProducer)
+    suspend fun `createStream`(`node`: NodeId)
+    
+    suspend fun `finalizeStream`()
     
     companion object
 }
@@ -2132,12 +2149,33 @@ open class IncomingStreamHandlerImpl: Disposable, AutoCloseable, IncomingStreamH
 
     
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-    override suspend fun `onOpen`(`node`: NodeId, `consumer`: StreamConsumer, `producer`: StreamProducer) {
+    override suspend fun `createStream`(`node`: NodeId) {
         return uniffiRustCallAsync(
         callWithPointer { thisPtr ->
-            UniffiLib.INSTANCE.uniffi_acup2p_fn_method_incomingstreamhandler_on_open(
+            UniffiLib.INSTANCE.uniffi_acup2p_fn_method_incomingstreamhandler_create_stream(
                 thisPtr,
-                FfiConverterTypeNodeId.lower(`node`),FfiConverterTypeStreamConsumer.lower(`consumer`),FfiConverterTypeStreamProducer.lower(`producer`),
+                FfiConverterTypeNodeId.lower(`node`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.INSTANCE.ffi_acup2p_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.INSTANCE.ffi_acup2p_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.INSTANCE.ffi_acup2p_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        UniffiNullRustCallStatusErrorHandler,
+    )
+    }
+
+    
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `finalizeStream`() {
+        return uniffiRustCallAsync(
+        callWithPointer { thisPtr ->
+            UniffiLib.INSTANCE.uniffi_acup2p_fn_method_incomingstreamhandler_finalize_stream(
+                thisPtr,
+                
             )
         },
         { future, callback, continuation -> UniffiLib.INSTANCE.ffi_acup2p_rust_future_poll_void(future, callback, continuation) },
@@ -2195,14 +2233,44 @@ internal object uniffiCallbackInterfaceIncomingStreamHandler {
             uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
         }
     }
-    internal object `onOpen`: UniffiCallbackInterfaceIncomingStreamHandlerMethod3 {
-        override fun callback(`uniffiHandle`: Long,`node`: RustBuffer.ByValue,`consumer`: Pointer,`producer`: Pointer,`uniffiFutureCallback`: UniffiForeignFutureCompleteVoid,`uniffiCallbackData`: Long,`uniffiOutReturn`: UniffiForeignFuture,) {
+    internal object `createStream`: UniffiCallbackInterfaceIncomingStreamHandlerMethod3 {
+        override fun callback(`uniffiHandle`: Long,`node`: RustBuffer.ByValue,`uniffiFutureCallback`: UniffiForeignFutureCompleteVoid,`uniffiCallbackData`: Long,`uniffiOutReturn`: UniffiForeignFuture,) {
             val uniffiObj = FfiConverterTypeIncomingStreamHandler.handleMap.get(uniffiHandle)
             val makeCall = suspend { ->
-                uniffiObj.`onOpen`(
+                uniffiObj.`createStream`(
                     FfiConverterTypeNodeId.lift(`node`),
-                    FfiConverterTypeStreamConsumer.lift(`consumer`),
-                    FfiConverterTypeStreamProducer.lift(`producer`),
+                )
+            }
+            val uniffiHandleSuccess = { _: Unit ->
+                val uniffiResult = UniffiForeignFutureStructVoid.UniffiByValue(
+                    UniffiRustCallStatus.ByValue()
+                )
+                uniffiResult.write()
+                uniffiFutureCallback.callback(uniffiCallbackData, uniffiResult)
+            }
+            val uniffiHandleError = { callStatus: UniffiRustCallStatus.ByValue ->
+                uniffiFutureCallback.callback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureStructVoid.UniffiByValue(
+                        callStatus,
+                    ),
+                )
+            }
+
+            uniffiOutReturn.uniffiSetValue(
+                uniffiTraitInterfaceCallAsync(
+                    makeCall,
+                    uniffiHandleSuccess,
+                    uniffiHandleError
+                )
+            )
+        }
+    }
+    internal object `finalizeStream`: UniffiCallbackInterfaceIncomingStreamHandlerMethod4 {
+        override fun callback(`uniffiHandle`: Long,`uniffiFutureCallback`: UniffiForeignFutureCompleteVoid,`uniffiCallbackData`: Long,`uniffiOutReturn`: UniffiForeignFuture,) {
+            val uniffiObj = FfiConverterTypeIncomingStreamHandler.handleMap.get(uniffiHandle)
+            val makeCall = suspend { ->
+                uniffiObj.`finalizeStream`(
                 )
             }
             val uniffiHandleSuccess = { _: Unit ->
@@ -2241,7 +2309,8 @@ internal object uniffiCallbackInterfaceIncomingStreamHandler {
         `protocol`,
         `consumer`,
         `producer`,
-        `onOpen`,
+        `createStream`,
+        `finalizeStream`,
         uniffiFree,
     )
 
