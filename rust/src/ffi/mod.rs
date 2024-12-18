@@ -3,16 +3,17 @@ pub mod types;
 #[cfg(feature = "libp2p")]
 pub mod libp2p;
 
-use std::error::Error;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::sync::Arc;
 use std::time::Duration;
+use std::usize;
 
 use async_trait::async_trait;
 use futures::future::FutureExt;
-use futures::{select, StreamExt};
+use futures::lock::Mutex;
+use futures::{select, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt};
 
-use crate::base::types::OutboundProtocolMessage;
+use crate::base::types::OutboundMessage;
 use crate::base::{self, Node};
 use crate::types::Result;
 
@@ -52,6 +53,21 @@ where
                             handler.on_error(e).await;
                         }
                     }
+                    Some(Intent::OpenOutgoingStream { protocol, node, producer, consumer }) => {
+                        match self.node.open_outgoing_stream(&protocol.as_str(), node.clone()).await {
+                            Ok(stream) => {
+                                let stream = Arc::new(Mutex::new(stream));
+                                let write_future = write_stream(stream.clone(), producer);
+                                let read_future = read_stream(stream.clone(), consumer);
+
+                                if cfg!(feature = "tokio") {
+                                    tokio::spawn(write_future);
+                                    tokio::spawn(read_future);
+                                }
+                            },
+                            Err(e) => handler.on_error(e).await,
+                        }
+                    }
                     Some(Intent::Close) | None => {
                         if let Err(e) = self.node.close().await {
                             handler.on_error(e).await;
@@ -59,6 +75,73 @@ where
                     }
                 }
             }
+        }
+    }
+
+    fn read_incoming_streams(
+        &mut self,
+        incoming_stream_handlers: Vec<Arc<dyn IncomingStreamHandler>>,
+    ) {
+        for handler in incoming_stream_handlers.into_iter() {
+            let protocol = handler.protocol();
+
+            let next_stream = self.node.next_incoming_stream(&protocol.as_str());
+            let subscribe_future = async move {
+                if let Some((node, stream)) = next_stream.await {
+                    let consumer = handler.consumer();
+                    let producer = handler.producer();
+                    let stream = Arc::new(Mutex::new(stream));
+                    let read_future = read_stream(stream.clone(), consumer.clone());
+                    let write_future = write_stream(stream.clone(), producer.clone());
+
+                    handler
+                        .on_open(node, consumer.clone(), producer.clone())
+                        .await;
+
+                    if cfg!(feature = "tokio") {
+                        tokio::spawn(read_future);
+                        tokio::spawn(write_future);
+                    }
+                }
+            };
+            if cfg!(feature = "tokio") {
+                tokio::spawn(subscribe_future);
+            }
+        }
+    }
+}
+
+async fn write_stream<T>(stream: Arc<Mutex<T>>, producer: Arc<dyn StreamProducer>)
+where
+    T: AsyncWrite + Send + Unpin + ?Sized,
+{
+    while let Some(bytes) = producer.next_bytes().await {
+        if let Err(e) = stream.lock().await.write_all(&bytes).await {
+            producer.on_error(e).await;
+        }
+        producer.on_finished(StreamWrite::Ok).await;
+    }
+    if let Err(e) = stream.lock().await.close().await {
+        producer.on_error(e).await;
+    }
+    producer.on_finished(StreamWrite::EOS).await;
+}
+
+async fn read_stream<T>(stream: Arc<Mutex<T>>, consumer: Arc<dyn StreamConsumer>)
+where
+    T: AsyncRead + Send + Unpin + ?Sized,
+{
+    while let Some(buffer_size) = consumer.next_read().await {
+        let mut bytes = vec![0u8; buffer_size.try_into().unwrap_or(usize::MAX)];
+        match stream.lock().await.read(&mut bytes).await {
+            Ok(read) => {
+                if read == 0 {
+                    consumer.on_bytes(StreamRead::EOS).await;
+                } else {
+                    consumer.on_bytes(StreamRead::Ok(bytes)).await;
+                }
+            }
+            Err(e) => consumer.on_bytes(StreamRead::Err(e.to_string())).await,
         }
     }
 }
@@ -70,19 +153,28 @@ pub fn default_config() -> Config {
 
 #[cfg_attr(feature = "tokio", uniffi::export(async_runtime = "tokio"))]
 #[cfg_attr(not(feature = "tokio"), uniffi::export)]
-pub async fn bind(handler: Arc<dyn Handler>, config: Config) {
-    if let Err(e) = __bind(&handler, config).await {
+pub async fn bind(
+    handler: Arc<dyn Handler>,
+    incoming_stream_handlers: Vec<Arc<dyn IncomingStreamHandler>>,
+    config: Config,
+) {
+    if let Err(e) = __bind(&handler, incoming_stream_handlers, config).await {
         handler.on_error(e).await;
     }
 }
 
-async fn __bind(handler: &Arc<dyn Handler>, config: Config) -> Result<()> {
+async fn __bind(
+    handler: &Arc<dyn Handler>,
+    incoming_stream_handlers: Vec<Arc<dyn IncomingStreamHandler>>,
+    config: Config,
+) -> Result<()> {
     let mut ffi;
     #[cfg(feature = "libp2p")]
     {
         ffi = FFI::libp2p(config).await?;
     }
 
+    ffi.read_incoming_streams(incoming_stream_handlers);
     ffi.run_loop(handler).await;
 
     Ok(())
@@ -96,11 +188,65 @@ pub trait Handler: Send + Sync + Debug {
 }
 
 impl dyn Handler {
-    async fn on_error(&self, error: Box<dyn Error + Send + Sync>) {
+    async fn on_error<T>(&self, error: T)
+    where
+        T: fmt::Display,
+    {
         self.on_event(Event::Error {
             cause: error.to_string(),
         })
         .await;
+    }
+}
+
+#[uniffi::export(with_foreign)]
+#[async_trait]
+pub trait IncomingStreamHandler: Send + Sync + Debug {
+    fn protocol(&self) -> String;
+    fn consumer(&self) -> Arc<dyn StreamConsumer>;
+    fn producer(&self) -> Arc<dyn StreamProducer>;
+    async fn on_open(
+        &self,
+        node: NodeId,
+        consumer: Arc<dyn StreamConsumer>,
+        producer: Arc<dyn StreamProducer>,
+    );
+}
+
+#[derive(uniffi::Enum)]
+pub enum StreamRead {
+    Ok(Vec<u8>),
+    EOS,
+    Err(String),
+}
+
+#[uniffi::export(with_foreign)]
+#[async_trait]
+pub trait StreamConsumer: Send + Sync + Debug {
+    async fn next_read(&self) -> Option<u32>;
+    async fn on_bytes(&self, read: StreamRead);
+}
+
+#[derive(uniffi::Enum)]
+pub enum StreamWrite {
+    Ok,
+    EOS,
+    Err(String),
+}
+
+#[uniffi::export(with_foreign)]
+#[async_trait]
+pub trait StreamProducer: Send + Sync + Debug {
+    async fn next_bytes(&self) -> Option<Vec<u8>>;
+    async fn on_finished(&self, write: StreamWrite);
+}
+
+impl dyn StreamProducer {
+    async fn on_error<T>(&self, error: T)
+    where
+        T: fmt::Display,
+    {
+        self.on_finished(StreamWrite::Err(error.to_string())).await;
     }
 }
 
@@ -113,8 +259,14 @@ pub enum Intent {
         nodes: Vec<NodeId>,
     },
     SendMessage {
-        message: OutboundProtocolMessage,
+        message: OutboundMessage,
         nodes: Vec<NodeId>,
+    },
+    OpenOutgoingStream {
+        protocol: String,
+        node: NodeId,
+        producer: Arc<dyn StreamProducer>,
+        consumer: Arc<dyn StreamConsumer>,
     },
     Close,
 }
@@ -123,6 +275,7 @@ pub enum Intent {
 pub struct Config {
     pub identity: Identity,
     pub message_protocols: Vec<String>,
+    pub stream_protocols: Vec<String>,
     pub relay_addresses: Vec<String>,
     pub reconnect_policy: ReconnectPolicy,
     pub idle_connection_timeout: Duration,
@@ -134,6 +287,7 @@ impl Default for Config {
         Self {
             identity: Identity::Random,
             message_protocols: vec![],
+            stream_protocols: vec![],
             relay_addresses: vec![],
             reconnect_policy: ReconnectPolicy::Always,
             idle_connection_timeout: Duration::from_secs(15),
@@ -147,6 +301,7 @@ impl<'a> From<&'a Config> for base::Config<'a> {
         base::Config {
             identity: value.identity.clone().into(),
             msg_protocols: value.message_protocols.iter().map(|s| s.as_str()).collect(),
+            stream_protocols: value.stream_protocols.iter().map(|s| s.as_str()).collect(),
             relay_addrs: value.relay_addresses.iter().map(|s| s.as_str()).collect(),
             reconn_policy: value.reconnect_policy,
             idle_conn_timeout: value.idle_connection_timeout,

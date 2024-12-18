@@ -115,7 +115,7 @@ impl NodeInner {
         let streams = config
             .stream_protocols
             .iter()
-            .map(|&(p, _)| {
+            .map(|&p| {
                 let protocol = Arc::new(p.to_owned());
                 let control = StreamControl::new(protocol.clone(), &swarm.behaviour().stream)?;
 

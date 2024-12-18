@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use futures::Stream;
 use std::collections::HashMap;
 use std::fmt;
+use std::future::Future;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
@@ -23,20 +24,22 @@ use self::inner::NodeInner;
 use self::node::NodeId;
 
 const DEFAULT_CHANNEL_BUFFER: usize = 255;
+const DEFAULT_INCOMING_STREAM_CHANNEL_BUFFER: usize = 64;
+const DEFAULT_OUTGOING_STREAM_CHANNEL_BUFFER: usize = 1;
 
 pub struct Node {
-    intent_tx: Sender<Intent>,
+    intent_tx: Arc<Mutex<Sender<Intent>>>,
     event_rx: Receiver<Event>,
 
     incoming_stream_rx: HashMap<
         Arc<String>,
-        Receiver<(base::types::NodeId, Box<dyn base::stream::IncomingStream>)>,
+        Arc<Mutex<Receiver<(base::types::NodeId, Box<dyn base::stream::IncomingStream>)>>>,
     >,
 
     outgoing_stream_tx:
         HashMap<Arc<String>, Arc<Mutex<Sender<Result<Box<dyn base::stream::OutgoingStream>>>>>>,
     outgoing_stream_rx:
-        HashMap<Arc<String>, Receiver<Result<Box<dyn base::stream::OutgoingStream>>>>,
+        HashMap<Arc<String>, Arc<Mutex<Receiver<Result<Box<dyn base::stream::OutgoingStream>>>>>>,
 }
 
 #[async_trait]
@@ -47,20 +50,20 @@ impl base::Node for Node {
         let ((incoming_stream_tx, incoming_stream_rx), (outgoing_stream_tx, outgoing_stream_rx)) = config
             .stream_protocols
             .iter()
-            .map(|(p, c)| {
-                let (incoming_tx, incoming_rx) = channel(c.incoming_buffer_size);
-                let (outgoing_tx, outgoing_rx) = channel(c.outgoing_buffer_size);
+            .map(|&p| {
+                let (incoming_tx, incoming_rx) = channel(DEFAULT_INCOMING_STREAM_CHANNEL_BUFFER);
+                let (outgoing_tx, outgoing_rx) = channel(DEFAULT_OUTGOING_STREAM_CHANNEL_BUFFER);
 
-                (Arc::new((*p).to_owned()), (incoming_tx, incoming_rx), (outgoing_tx, outgoing_rx))
+                (Arc::new(p.to_owned()), (incoming_tx, incoming_rx), (outgoing_tx, outgoing_rx))
             })
             .fold(
                 ((HashMap::new(), HashMap::new()), (HashMap::new(), HashMap::new())),
                 |((mut incoming_tx_map, mut incoming_rx_map), (mut outgoing_tx_map, mut outgoing_rx_map)), (p, (incoming_tx, incoming_rx), (outgoing_tx, outgoing_rx))| {
                     incoming_tx_map.insert(p.clone(), Arc::new(Mutex::new(incoming_tx)));
-                    incoming_rx_map.insert(p.clone(), incoming_rx);
+                    incoming_rx_map.insert(p.clone(), Arc::new(Mutex::new(incoming_rx)));
 
                     outgoing_tx_map.insert(p.clone(), Arc::new(Mutex::new(outgoing_tx)));
-                    outgoing_rx_map.insert(p.clone(), outgoing_rx);
+                    outgoing_rx_map.insert(p.clone(), Arc::new(Mutex::new(outgoing_rx)));
 
                     ((incoming_tx_map, incoming_rx_map), (outgoing_tx_map, outgoing_rx_map))
                 },
@@ -72,7 +75,7 @@ impl base::Node for Node {
         });
 
         Ok(Node {
-            intent_tx,
+            intent_tx: Arc::new(Mutex::new(intent_tx)),
             event_rx,
             incoming_stream_rx,
             outgoing_stream_tx,
@@ -82,7 +85,11 @@ impl base::Node for Node {
 
     async fn connect(&mut self, nodes: &[base::types::NodeId]) -> Result<()> {
         for node in nodes {
-            self.intent_tx.send(Intent::Dial(node.try_into()?)).await?;
+            self.intent_tx
+                .lock()
+                .await
+                .send(Intent::Dial(node.try_into()?))
+                .await?;
         }
 
         Ok(())
@@ -91,6 +98,8 @@ impl base::Node for Node {
     async fn disconnect(&mut self, nodes: &[base::types::NodeId]) -> Result<()> {
         for node in nodes {
             self.intent_tx
+                .lock()
+                .await
                 .send(Intent::Disconnect(node.try_into()?))
                 .await?;
         }
@@ -105,6 +114,8 @@ impl base::Node for Node {
     ) -> Result<()> {
         for node in nodes {
             self.intent_tx
+                .lock()
+                .await
                 .send(Intent::DirectMessage {
                     peer: node.try_into()?,
                     message: message.clone(),
@@ -115,52 +126,71 @@ impl base::Node for Node {
         Ok(())
     }
 
-    async fn next_incoming_stream(
+    fn next_incoming_stream(
         &mut self,
         protocol: &str,
-    ) -> Option<(base::types::NodeId, Box<dyn base::stream::IncomingStream>)> {
-        let rx = match self
+    ) -> impl Future<Output = Option<(base::types::NodeId, Box<dyn base::stream::IncomingStream>)>>
+           + Send
+           + 'static {
+        let rx = self
             .incoming_stream_rx
             .get_mut(&Arc::new(protocol.to_owned()))
-        {
-            Some(rx) => rx,
-            None => return None,
-        };
+            .map(|rx| rx.clone());
 
-        rx.recv().await
+        async move {
+            let rx = match rx {
+                Some(rx) => rx,
+                None => return None,
+            };
+
+            let option = rx.lock().await.recv().await;
+
+            option
+        }
     }
 
-    async fn open_outgoing_stream(
+    fn open_outgoing_stream(
         &mut self,
         protocol: &str,
         node: base::types::NodeId,
-    ) -> Result<Box<dyn base::stream::OutgoingStream>> {
+    ) -> impl Future<Output = Result<Box<dyn base::stream::OutgoingStream>>> + Send + 'static {
         let protocol = Arc::new(protocol.to_owned());
         let tx = self
             .outgoing_stream_tx
             .get(&protocol)
-            .ok_or(Error::UnknownProtocol((*protocol).clone()))?;
+            .ok_or(Error::UnknownProtocol((*protocol).clone()))
+            .map(|tx| tx.clone());
 
         let rx = self
             .outgoing_stream_rx
             .get_mut(&protocol)
-            .ok_or(Error::UnknownProtocol((*protocol).clone()))?;
+            .ok_or(Error::UnknownProtocol((*protocol).clone()))
+            .map(|rx| rx.clone());
 
-        self.intent_tx
-            .send(Intent::OpenStream {
-                peer: (&node).try_into()?,
-                protocol: (*protocol).clone(),
-                tx: tx.clone(),
-            })
-            .await?;
+        let intent_tx = self.intent_tx.clone();
 
-        let result = rx.recv().await.ok_or(Error::NodeClosed)?;
+        async move {
+            let tx = tx?;
+            let rx = rx?;
 
-        result
+            intent_tx
+                .lock()
+                .await
+                .send(Intent::OpenStream {
+                    peer: (&node).try_into()?,
+                    protocol: (*protocol).clone(),
+                    tx: tx.clone(),
+                })
+                .await?;
+
+            let result = rx.lock().await.recv().await.ok_or(Error::NodeClosed)?;
+
+            result
+        }
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.intent_tx.send(Intent::Close).await?;
+        self.intent_tx.lock().await.send(Intent::Close).await?;
         self.event_rx.close();
 
         Ok(())
