@@ -20,6 +20,7 @@ pub enum Event {
         address: String,
     },
     Ready,
+
     Connected {
         node: NodeId,
     },
@@ -44,6 +45,11 @@ pub enum Event {
         receiver: NodeId,
         response: OutboundProtocolResponse,
     },
+
+    ConnectionError {
+        node: NodeId,
+        cause: String,
+    },
     Error {
         cause: String,
     },
@@ -67,6 +73,9 @@ impl fmt::Display for Event {
             }
             Event::OutboundResponse { receiver, response } => {
                 write!(f, "Sent a response to {receiver}: {response}")
+            }
+            Event::ConnectionError { node, cause } => {
+                write!(f, "Failed to connect to {node}: {cause}")
             }
             Event::Error { cause } => write!(f, "Error: {cause}"),
         }

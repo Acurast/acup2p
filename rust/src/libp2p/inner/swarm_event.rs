@@ -69,6 +69,9 @@ impl NodeInner {
                     )
                     .await;
                 }
+                if let Some(peer_id) = peer_id {
+                    self.notify_connection_error(peer_id, error.to_string()).await;
+                }
             }
             SwarmEvent::NewListenAddr {
                 listener_id,
@@ -86,7 +89,10 @@ impl NodeInner {
                     self.notify_listeners_ready().await;
                 }
 
-                let relays_connected = self.relays.values().fold(true, |acc, r| acc && r.is_relaying());
+                let relays_connected = self
+                    .relays
+                    .values()
+                    .fold(true, |acc, r| acc && r.is_relaying());
                 if self.tracked_listeners.is_empty() && relays_connected {
                     self.notify_ready().await;
                 }
@@ -102,7 +108,7 @@ impl NodeInner {
                     if self.tracked_listeners.is_empty() {
                         self.notify_ready().await;
                     }
-                    
+
                     if let Err(e) = reason {
                         tracing::info!(error=%e, "circuit relay closed unexpectedly");
                         self.maybe_reconnect_relay(

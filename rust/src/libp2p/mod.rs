@@ -6,8 +6,7 @@ mod node;
 mod relay;
 
 use async_trait::async_trait;
-use futures::stream;
-use futures::Stream;
+use futures::{stream, Stream};
 use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
@@ -131,28 +130,28 @@ impl base::Node for Node {
     fn incoming_streams(
         &mut self,
         protocol: &str,
-    ) -> impl Stream<Item = (base::types::NodeId, Box<dyn base::stream::IncomingStream>)> + Send + Unpin + 'static {
+    ) -> impl Stream<Item = (base::types::NodeId, Box<dyn base::stream::IncomingStream>)>
+           + Send
+           + Unpin
+           + 'static {
         let rx = self
             .incoming_stream_rx
             .get_mut(&Arc::new(protocol.to_owned()))
             .map(|rx| rx.clone());
 
-        stream::poll_fn(move |cx| {
-            match &rx {
-                Some(rx) => {
-                    let mut rx = match rx.try_lock() {
-                        Ok(guard) => guard,
-                        Err(_) => {
-                            cx.waker().wake_by_ref();
-                            return Poll::Pending;
-                        }
-                    };
+        stream::poll_fn(move |cx| match &rx {
+            Some(rx) => {
+                let mut rx = match rx.try_lock() {
+                    Ok(guard) => guard,
+                    Err(_) => {
+                        cx.waker().wake_by_ref();
+                        return Poll::Pending;
+                    }
+                };
 
-    
-                    rx.poll_recv(cx)
-                },
-                None => Poll::Ready(None),
+                rx.poll_recv(cx)
             }
+            None => Poll::Ready(None),
         })
     }
 

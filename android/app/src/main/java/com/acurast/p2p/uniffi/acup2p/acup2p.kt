@@ -3302,6 +3302,12 @@ sealed class Event {
         companion object
     }
     
+    data class ConnectionError(
+        val `node`: NodeId, 
+        val `cause`: kotlin.String) : Event() {
+        companion object
+    }
+    
     data class Error(
         val `cause`: kotlin.String) : Event() {
         companion object
@@ -3344,7 +3350,11 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 FfiConverterTypeNodeId.read(buf),
                 FfiConverterTypeOutboundProtocolResponse.read(buf),
                 )
-            9 -> Event.Error(
+            9 -> Event.ConnectionError(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterString.read(buf),
+                )
+            10 -> Event.Error(
                 FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
@@ -3411,6 +3421,14 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 + FfiConverterTypeOutboundProtocolResponse.allocationSize(value.`response`)
             )
         }
+        is Event.ConnectionError -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeNodeId.allocationSize(value.`node`)
+                + FfiConverterString.allocationSize(value.`cause`)
+            )
+        }
         is Event.Error -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
@@ -3465,8 +3483,14 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 FfiConverterTypeOutboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
-            is Event.Error -> {
+            is Event.ConnectionError -> {
                 buf.putInt(9)
+                FfiConverterTypeNodeId.write(value.`node`, buf)
+                FfiConverterString.write(value.`cause`, buf)
+                Unit
+            }
+            is Event.Error -> {
+                buf.putInt(10)
                 FfiConverterString.write(value.`cause`, buf)
                 Unit
             }
