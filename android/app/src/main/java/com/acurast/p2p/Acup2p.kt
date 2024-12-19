@@ -71,10 +71,8 @@ public class Acup2p(coroutineContext: CoroutineContext, config: Config = Config.
     }
 
     public suspend fun openOutgoingStream(protocol: String, node: NodeId): Stream {
-        val consumer = Stream.Consumer()
-        val producer = Stream.Producer()
-        val stream = Stream(protocol, node, consumer, producer)
-        handler.intents.send(Intent.OpenOutgoingStream(protocol, node, producer, consumer))
+        val stream = Stream(protocol, node, Stream.Consumer(), Stream.Producer())
+        handler.intents.send(Intent.OpenOutgoingStream(protocol, node, stream.producer, stream.consumer))
 
         return stream
     }
