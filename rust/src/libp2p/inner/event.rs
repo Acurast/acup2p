@@ -18,6 +18,10 @@ impl NodeInner {
         .await;
     }
 
+    pub(super) async fn notify_ready(&mut self) {
+        self.notify(base::types::Event::Ready).await;
+    }
+
     pub(super) async fn notify_connected(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::Connected {
             node: base::types::NodeId::Address {

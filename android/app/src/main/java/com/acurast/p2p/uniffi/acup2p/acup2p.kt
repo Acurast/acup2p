@@ -3265,6 +3265,9 @@ sealed class Event {
         companion object
     }
     
+    object Ready : Event()
+    
+    
     data class Connected(
         val `node`: NodeId) : Event() {
         companion object
@@ -3318,29 +3321,30 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             1 -> Event.ListeningOn(
                 FfiConverterString.read(buf),
                 )
-            2 -> Event.Connected(
+            2 -> Event.Ready
+            3 -> Event.Connected(
                 FfiConverterTypeNodeId.read(buf),
                 )
-            3 -> Event.Disconnected(
+            4 -> Event.Disconnected(
                 FfiConverterTypeNodeId.read(buf),
                 )
-            4 -> Event.InboundRequest(
+            5 -> Event.InboundRequest(
                 FfiConverterTypeNodeId.read(buf),
                 FfiConverterTypeInboundProtocolRequest.read(buf),
                 )
-            5 -> Event.InboundResponse(
+            6 -> Event.InboundResponse(
                 FfiConverterTypeNodeId.read(buf),
                 FfiConverterTypeInboundProtocolResponse.read(buf),
                 )
-            6 -> Event.OutboundRequest(
+            7 -> Event.OutboundRequest(
                 FfiConverterTypeNodeId.read(buf),
                 FfiConverterTypeOutboundProtocolRequest.read(buf),
                 )
-            7 -> Event.OutboundResponse(
+            8 -> Event.OutboundResponse(
                 FfiConverterTypeNodeId.read(buf),
                 FfiConverterTypeOutboundProtocolResponse.read(buf),
                 )
-            8 -> Event.Error(
+            9 -> Event.Error(
                 FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
@@ -3353,6 +3357,12 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             (
                 4UL
                 + FfiConverterString.allocationSize(value.`address`)
+            )
+        }
+        is Event.Ready -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
             )
         }
         is Event.Connected -> {
@@ -3417,42 +3427,46 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 FfiConverterString.write(value.`address`, buf)
                 Unit
             }
-            is Event.Connected -> {
+            is Event.Ready -> {
                 buf.putInt(2)
-                FfiConverterTypeNodeId.write(value.`node`, buf)
                 Unit
             }
-            is Event.Disconnected -> {
+            is Event.Connected -> {
                 buf.putInt(3)
                 FfiConverterTypeNodeId.write(value.`node`, buf)
                 Unit
             }
-            is Event.InboundRequest -> {
+            is Event.Disconnected -> {
                 buf.putInt(4)
+                FfiConverterTypeNodeId.write(value.`node`, buf)
+                Unit
+            }
+            is Event.InboundRequest -> {
+                buf.putInt(5)
                 FfiConverterTypeNodeId.write(value.`sender`, buf)
                 FfiConverterTypeInboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.InboundResponse -> {
-                buf.putInt(5)
+                buf.putInt(6)
                 FfiConverterTypeNodeId.write(value.`sender`, buf)
                 FfiConverterTypeInboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
             is Event.OutboundRequest -> {
-                buf.putInt(6)
+                buf.putInt(7)
                 FfiConverterTypeNodeId.write(value.`receiver`, buf)
                 FfiConverterTypeOutboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.OutboundResponse -> {
-                buf.putInt(7)
+                buf.putInt(8)
                 FfiConverterTypeNodeId.write(value.`receiver`, buf)
                 FfiConverterTypeOutboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
             is Event.Error -> {
-                buf.putInt(8)
+                buf.putInt(9)
                 FfiConverterString.write(value.`cause`, buf)
                 Unit
             }

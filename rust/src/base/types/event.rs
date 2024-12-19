@@ -19,7 +19,7 @@ pub enum Event {
     ListeningOn {
         address: String,
     },
-
+    Ready,
     Connected {
         node: NodeId,
     },
@@ -44,7 +44,6 @@ pub enum Event {
         receiver: NodeId,
         response: OutboundProtocolResponse,
     },
-
     Error {
         cause: String,
     },
@@ -54,6 +53,7 @@ impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Event::ListeningOn { address } => write!(f, "Listening on address {address}"),
+            Event::Ready => write!(f, "Ready"),
             Event::Connected { node } => write!(f, "Node {node} connected"),
             Event::Disconnected { node } => write!(f, "Node {node} disconnected"),
             Event::InboundRequest { sender, request } => {

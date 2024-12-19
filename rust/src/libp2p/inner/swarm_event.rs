@@ -85,6 +85,11 @@ impl NodeInner {
                 if was_required && self.required_listeners.is_empty() {
                     self.notify_listeners_ready().await;
                 }
+
+                let relays_connected = self.relays.values().fold(true, |acc, r| acc && r.is_relaying());
+                if self.tracked_listeners.is_empty() && relays_connected {
+                    self.notify_ready().await;
+                }
             }
             SwarmEvent::ListenerClosed {
                 listener_id,
