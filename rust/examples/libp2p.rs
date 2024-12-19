@@ -149,7 +149,8 @@ where
         },
         Event::Error { cause } => {
             println!("error: {cause}")
-        }
+        },
+        _ => {},
     }
 }
 
