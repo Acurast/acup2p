@@ -99,6 +99,10 @@ impl NodeInner {
                 if let Some(ListenerType::CircuitRelay(peer_id)) =
                     self.tracked_listeners.remove(&listener_id)
                 {
+                    if self.tracked_listeners.is_empty() {
+                        self.notify_ready().await;
+                    }
+                    
                     if let Err(e) = reason {
                         tracing::info!(error=%e, "circuit relay closed unexpectedly");
                         self.maybe_reconnect_relay(
