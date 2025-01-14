@@ -123,6 +123,13 @@ impl Relay {
             _ => false,
         }
     }
+
+    pub(super) fn is_relaying(&self) -> bool {
+        match self.status {
+            Status::Relaying => true,
+            _ => false,
+        }
+    }
 }
 
 impl Deref for Relay {

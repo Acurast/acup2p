@@ -13,9 +13,9 @@ use libp2p::swarm::{
     THandlerInEvent, THandlerOutEvent, ToSwarm,
 };
 use libp2p::{dcutr, identify, mdns, ping, relay, Multiaddr, PeerId, StreamProtocol};
-use libp2p_request_response as request_response;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use {libp2p_request_response as request_response, libp2p_stream as stream};
 
 use crate::libp2p::message;
 
@@ -50,6 +50,7 @@ pub(super) struct Behaviour {
     pub ping: ping::Behaviour,
     pub dcutr: dcutr::Behaviour,
     pub messages: MultiBehaviour<String, message::Behaviour>,
+    pub stream: stream::Behaviour,
 }
 
 impl Behaviour {
@@ -77,6 +78,7 @@ impl Behaviour {
                 request_response::Config::default(),
             ))
         })?;
+        let stream = stream::Behaviour::new();
 
         Ok(Behaviour {
             mdns,
@@ -85,6 +87,7 @@ impl Behaviour {
             ping,
             dcutr,
             messages,
+            stream,
         })
     }
 }
