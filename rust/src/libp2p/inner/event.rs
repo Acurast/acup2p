@@ -11,6 +11,16 @@ impl NodeInner {
             .await;
     }
 
+    pub(super) async fn notify_connection_error(&mut self, peer_id: PeerId, error: String) {
+        self.notify(base::types::Event::ConnectionError {
+            node: base::types::NodeId::Peer {
+                peer_id: peer_id.to_string(),
+            },
+            cause: error,
+        })
+        .await;
+    }
+
     pub(super) async fn notify_listening_on(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::ListeningOn {
             address: addr.to_string(),
@@ -18,16 +28,24 @@ impl NodeInner {
         .await;
     }
 
+    pub(super) async fn notify_ready(&mut self) {
+        self.notify(base::types::Event::Ready).await;
+    }
+
     pub(super) async fn notify_connected(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::Connected {
-            node: base::types::NodeId::Address { address: addr.to_string() },
+            node: base::types::NodeId::Address {
+                address: addr.to_string(),
+            },
         })
         .await;
     }
 
     pub(super) async fn notify_disconnected(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::Disconnected {
-            node: base::types::NodeId::Address { address: addr.to_string() },
+            node: base::types::NodeId::Address {
+                address: addr.to_string(),
+            },
         })
         .await;
     }
@@ -40,7 +58,9 @@ impl NodeInner {
         request_id: String,
     ) {
         self.notify(base::types::Event::InboundRequest {
-            sender: base::types::NodeId::Peer { peer_id: peer_id.to_string() },
+            sender: base::types::NodeId::Peer {
+                peer_id: peer_id.to_string(),
+            },
             request: base::types::InboundProtocolRequest {
                 protocol,
                 bytes: request,
@@ -58,7 +78,9 @@ impl NodeInner {
         request_id: String,
     ) {
         self.notify(base::types::Event::InboundResponse {
-            sender: base::types::NodeId::Peer { peer_id: peer_id.to_string() },
+            sender: base::types::NodeId::Peer {
+                peer_id: peer_id.to_string(),
+            },
             response: base::types::InboundProtocolResponse {
                 protocol,
                 bytes: response,
