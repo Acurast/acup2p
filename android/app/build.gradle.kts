@@ -10,7 +10,7 @@ plugins {
 object Library {
     const val groupId = "com.acurast.p2p"
     const val artifactId = "acup2p"
-    const val version = "1.1.0-beta03"
+    const val version = "1.1.0"
 }
 
 android {
