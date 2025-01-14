@@ -55,8 +55,12 @@ impl TryFrom<&base::types::NodeId> for NodeId {
 impl From<&NodeId> for base::types::NodeId {
     fn from(value: &NodeId) -> Self {
         match value {
-            NodeId::Peer(peer_id) => base::types::NodeId::Peer { peer_id: peer_id.to_string() },
-            NodeId::Addr(multiaddr) => base::types::NodeId::Address { address: multiaddr.to_string() },
+            NodeId::Peer(peer_id) => base::types::NodeId::Peer {
+                peer_id: peer_id.to_string(),
+            },
+            NodeId::Addr(multiaddr) => base::types::NodeId::Address {
+                address: multiaddr.to_string(),
+            },
         }
     }
 }

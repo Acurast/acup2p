@@ -53,8 +53,8 @@ impl NodeInner {
 
     pub(super) async fn send_self_message(&mut self, message: Message) {
         tracing::debug!("{message}");
-        if let Err(e) = self.self_msg_tx.send(message.clone()).await {
-            tracing::debug!(%message, error=%e, "failed to send the message due to an error");
+        if let Err(_) = self.self_msg_tx.send(message.clone()).await {
+            tracing::debug!(%message, "failed to send the message, channel is closed");
         }
     }
 }
