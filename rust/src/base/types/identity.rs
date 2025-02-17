@@ -9,3 +9,8 @@ pub enum Identity {
 pub enum SecretKey {
     Ed25519([u8; 32]),
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum PublicKey {
+    Ed25519([u8; 32]),
+}

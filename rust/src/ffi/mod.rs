@@ -17,7 +17,7 @@ use crate::base::types::OutboundProtocolMessage;
 use crate::base::{self, Node};
 use crate::types::Result;
 
-use self::types::{Event, Identity, NodeId, ReconnectPolicy};
+use self::types::{Event, Identity, NodeId, PublicKey, ReconnectPolicy};
 
 pub struct FFI<T>
 where
@@ -323,4 +323,27 @@ pub enum LogLevel {
     Info,
     Debug,
     Trace,
+}
+
+#[derive(uniffi::Enum, Debug)]
+enum Error {
+    DecodingError(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::DecodingError(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+#[uniffi::export]
+fn node_id_from_public_key(pk: PublicKey) -> Result<NodeId, Error> {
+    let pk = base::types::PublicKey::from(pk);
+    let node_id = pk.try_into().map_err(|err| Error::DecodingError(err))?;
+
+    Ok(node_id)
 }

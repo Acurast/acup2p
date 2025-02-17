@@ -1,8 +1,8 @@
 mod behaviour;
 mod identity;
-pub mod inner;
+mod inner;
 mod message;
-mod node;
+pub mod node;
 mod relay;
 
 use async_trait::async_trait;
@@ -183,7 +183,7 @@ impl base::Node for Node {
                 .lock()
                 .await
                 .send(Intent::OpenStream {
-                    peer: (&node).try_into()?,
+                    peer: node.try_into()?,
                     protocol: (*protocol).clone(),
                     tx: tx.clone(),
                 })
