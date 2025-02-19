@@ -22,10 +22,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let opt = Opt::parse();
     let config = Config {
         msg_protocols: vec![PROTOCOL_ECHO],
-        ..Config::from(&opt)
+        ..opt.into_config(Some(Default::default()))
     };
-
-    libp2p::Node::enable_log(libp2p::LogConfig::default());
 
     let mut node = libp2p::Node::new(config).await?;
     let mut stdin = io::BufReader::new(io::stdin()).lines();
@@ -221,29 +219,32 @@ struct Opt {
     idle_conn_timeout: Option<u64>,
 }
 
-impl<'a> From<&'a Opt> for Config<'a> {
-    fn from(value: &'a Opt) -> Self {
-        let default = Config::default();
+impl Opt {
+    fn into_config<'a, L>(&'a self, log: L) -> Config<'a, L>
+    where
+        L: Default,
+    {
+        let default = Config::<L>::default();
 
-        let identity = if let Some(seed) = &value.identity_seed {
+        let identity = if let Some(seed) = &self.identity_seed {
             Identity::Seed(seed.clone().fit_into_arr())
         } else {
             default.identity
         };
 
-        let relay_addrs = if let Some(addrs) = &value.relay_addrs {
+        let relay_addrs = if let Some(addrs) = &self.relay_addrs {
             addrs.iter().map(|s| s.as_str()).collect::<Vec<_>>()
         } else {
             default.relay_addrs
         };
 
-        let reconn_policy = if let Some(n) = value.max_relay_reconn_attempts {
+        let reconn_policy = if let Some(n) = self.max_relay_reconn_attempts {
             ReconnectPolicy::Attempts(n)
         } else {
             default.reconn_policy
         };
 
-        let idle_conn_timeout = if let Some(n) = value.idle_conn_timeout {
+        let idle_conn_timeout = if let Some(n) = self.idle_conn_timeout {
             Duration::from_secs(n)
         } else {
             default.idle_conn_timeout
@@ -254,6 +255,7 @@ impl<'a> From<&'a Opt> for Config<'a> {
             relay_addrs,
             reconn_policy,
             idle_conn_timeout,
+            log,
             ..Default::default()
         }
     }

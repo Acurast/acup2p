@@ -15,7 +15,9 @@ use self::types::{Event, Identity, NodeId, OutboundProtocolMessage};
 
 #[async_trait]
 pub trait Node: Stream<Item = Event> {
-    async fn new(config: Config<'_>) -> Result<Self>
+    type Log;
+
+    async fn new(config: Config<'_, Self::Log>) -> Result<Self>
     where
         Self: Sized;
 
@@ -42,7 +44,7 @@ pub trait Node: Stream<Item = Event> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Config<'a> {
+pub struct Config<'a, L> {
     pub identity: Identity,
 
     pub msg_protocols: Vec<&'a str>,
@@ -52,9 +54,14 @@ pub struct Config<'a> {
 
     pub reconn_policy: ReconnectPolicy,
     pub idle_conn_timeout: Duration,
+
+    pub log: L,
 }
 
-impl Default for Config<'_> {
+impl<L> Default for Config<'_, L>
+where
+    L: Default,
+{
     fn default() -> Self {
         Self {
             identity: Identity::Random,
@@ -63,6 +70,7 @@ impl Default for Config<'_> {
             relay_addrs: vec![],
             reconn_policy: ReconnectPolicy::Always,
             idle_conn_timeout: Duration::ZERO,
+            log: Default::default(),
         }
     }
 }
