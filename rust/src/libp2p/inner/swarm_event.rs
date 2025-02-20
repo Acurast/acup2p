@@ -97,13 +97,6 @@ impl NodeInner {
 
                 if was_required && self.required_listeners.is_empty() {
                     self.notify_listeners_ready().await;
-                }
-
-                let relays_connected = self
-                    .relays
-                    .values()
-                    .fold(true, |acc, r| acc && r.is_relaying());
-                if self.tracked_listeners.is_empty() && relays_connected {
                     self.notify_ready().await;
                 }
             }
@@ -115,10 +108,6 @@ impl NodeInner {
                 if let Some(ListenerType::CircuitRelay(peer_id)) =
                     self.tracked_listeners.remove(&listener_id)
                 {
-                    if self.tracked_listeners.is_empty() {
-                        self.notify_ready().await;
-                    }
-
                     if let Err(e) = reason {
                         tracing::info!(error=%e, "circuit relay closed unexpectedly");
                         self.maybe_reconnect_relay(
