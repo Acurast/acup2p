@@ -10,7 +10,6 @@ use std::usize;
 
 use async_trait::async_trait;
 use futures::future::FutureExt;
-use futures::lock::Mutex;
 use futures::{select, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt};
 
 use crate::base::types::OutboundProtocolMessage;
