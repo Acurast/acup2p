@@ -3,7 +3,7 @@ mod identity;
 pub mod inner;
 mod message;
 mod node;
-mod relay;
+mod dcutr;
 
 use async_trait::async_trait;
 use futures::{stream, Stream};

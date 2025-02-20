@@ -6,10 +6,10 @@ use crate::types::ReconnectPolicy;
 
 pub(super) struct Relay {
     addr: Multiaddr,
-    status: Status,
+    status: RelayStatus,
 }
 
-pub(super) enum Status {
+pub(super) enum RelayStatus {
     Unreachable,
     Disconnected(u8),
     Connecting {
@@ -21,7 +21,7 @@ pub(super) enum Status {
     Relaying,
 }
 
-pub(super) enum ConnectionUpdate {
+pub(super) enum RelayConnectionUpdate {
     SentObservedAddr,
     LearntObservedAddr(Multiaddr),
 }
@@ -30,55 +30,55 @@ impl Relay {
     pub(super) fn new(addr: Multiaddr) -> Self {
         Relay {
             addr,
-            status: Status::Disconnected(0),
+            status: RelayStatus::Disconnected(0),
         }
     }
 
     pub(super) fn set_unreachable(&mut self) {
-        self.status = Status::Unreachable;
+        self.status = RelayStatus::Unreachable;
     }
 
     pub(super) fn set_disconnected(&mut self, reconn_policy: &ReconnectPolicy) {
         self.status = match reconn_policy {
-            ReconnectPolicy::Never => Status::Unreachable,
+            ReconnectPolicy::Never => RelayStatus::Unreachable,
             ReconnectPolicy::Attempts(max_attempts) => {
                 let conn_attempts = match self.status {
-                    Status::Disconnected(i) => i + 1,
+                    RelayStatus::Disconnected(i) => i + 1,
                     _ => 1,
                 };
 
                 if conn_attempts < *max_attempts {
-                    Status::Disconnected(conn_attempts)
+                    RelayStatus::Disconnected(conn_attempts)
                 } else {
-                    Status::Unreachable
+                    RelayStatus::Unreachable
                 }
             }
-            ReconnectPolicy::Always => Status::Disconnected(0),
+            ReconnectPolicy::Always => RelayStatus::Disconnected(0),
         }
     }
 
     pub(super) fn set_connecting(&mut self) {
-        self.status = Status::Connecting {
+        self.status = RelayStatus::Connecting {
             told_observed_addr: false,
             learnt_observed_addr: false,
         };
     }
 
-    pub(super) fn update_connecting(&mut self, update: ConnectionUpdate) {
+    pub(super) fn update_connecting(&mut self, update: RelayConnectionUpdate) {
         match self.status {
-            Status::Connecting {
+            RelayStatus::Connecting {
                 told_observed_addr,
                 learnt_observed_addr,
             } => {
                 let relay = &self.addr;
                 let (told_observed_addr, learnt_observed_addr) = match update {
-                    ConnectionUpdate::SentObservedAddr => {
+                    RelayConnectionUpdate::SentObservedAddr => {
                         if !told_observed_addr {
                             tracing::info!(%relay, "told relay address");
                         }
                         (true, learnt_observed_addr)
                     }
-                    ConnectionUpdate::LearntObservedAddr(multiaddr) => {
+                    RelayConnectionUpdate::LearntObservedAddr(multiaddr) => {
                         if !learnt_observed_addr {
                             tracing::info!(%relay, observed_addr=%multiaddr, "learnt observed address");
                         }
@@ -88,9 +88,9 @@ impl Relay {
 
                 self.status = if told_observed_addr && learnt_observed_addr {
                     tracing::info!(%relay, "relay connection established");
-                    Status::Connected
+                    RelayStatus::Connected
                 } else {
-                    Status::Connecting {
+                    RelayStatus::Connecting {
                         told_observed_addr,
                         learnt_observed_addr,
                     }
@@ -101,32 +101,32 @@ impl Relay {
     }
 
     pub(super) fn set_pending_reservation(&mut self) {
-        self.status = Status::PendingReservation;
+        self.status = RelayStatus::PendingReservation;
     }
 
     pub(super) fn set_relaying(&mut self) {
         let relay = &self.addr;
         tracing::info!(%relay, "relay ready");
-        self.status = Status::Relaying;
+        self.status = RelayStatus::Relaying;
     }
 
     pub(super) fn is_unreachable(&self) -> bool {
         match self.status {
-            Status::Unreachable => true,
+            RelayStatus::Unreachable => true,
             _ => false,
         }
     }
 
     pub(super) fn is_connected(&self) -> bool {
         match self.status {
-            Status::Connected => true,
+            RelayStatus::Connected => true,
             _ => false,
         }
     }
 
     pub(super) fn is_relaying(&self) -> bool {
         match self.status {
-            Status::Relaying => true,
+            RelayStatus::Relaying => true,
             _ => false,
         }
     }
@@ -143,5 +143,19 @@ impl Deref for Relay {
 impl DerefMut for Relay {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.addr
+    }
+}
+
+pub(super) enum ConnectionStatus {
+    Circuit(Multiaddr),
+    Direct(Multiaddr),
+}
+
+impl ConnectionStatus {
+    pub(super) fn address(&self) -> &Multiaddr {
+        match self {
+            ConnectionStatus::Circuit(addr) => addr,
+            ConnectionStatus::Direct(addr) => addr,
+        }
     }
 }
