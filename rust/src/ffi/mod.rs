@@ -10,7 +10,6 @@ use std::usize;
 
 use async_trait::async_trait;
 use futures::future::FutureExt;
-use futures::lock::Mutex;
 use futures::{select, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt};
 
 use crate::base::types::OutboundProtocolMessage;
@@ -59,9 +58,9 @@ where
                         let open_future = async move {
                             match open_stream.await {
                                 Ok(stream) => {
-                                    let stream = Arc::new(Mutex::new(stream));
-                                    let write_future = write_stream(stream.clone(), producer);
-                                    let read_future = read_stream(stream.clone(), consumer);
+                                    let (read, write) = stream.split();
+                                    let write_future = write_stream(write, producer);
+                                    let read_future = read_stream(read, consumer);
 
                                     if cfg!(feature = "tokio") {
                                         tokio::spawn(write_future);
@@ -99,9 +98,9 @@ where
 
                     let consumer = handler.consumer();
                     let producer = handler.producer();
-                    let stream = Arc::new(Mutex::new(stream));
-                    let read_future = read_stream(stream.clone(), consumer.clone());
-                    let write_future = write_stream(stream.clone(), producer.clone());
+                    let (read, write) = stream.split();
+                    let read_future = read_stream(read, consumer.clone());
+                    let write_future = write_stream(write, producer.clone());
 
                     handler.finalize_stream().await;
 
@@ -118,29 +117,29 @@ where
     }
 }
 
-async fn write_stream<T>(stream: Arc<Mutex<T>>, producer: Arc<dyn StreamProducer>)
+async fn write_stream<T>(mut stream: T, producer: Arc<dyn StreamProducer>)
 where
-    T: AsyncWrite + Send + Unpin + ?Sized,
+    T: AsyncWrite + Send + Unpin + Sized,
 {
     while let Some(bytes) = producer.next_bytes().await {
-        if let Err(e) = stream.lock().await.write_all(&bytes).await {
+        if let Err(e) = stream.write_all(&bytes).await {
             producer.on_error(e).await;
         }
         producer.on_finished(StreamWrite::Ok).await;
     }
-    if let Err(e) = stream.lock().await.close().await {
+    if let Err(e) = stream.close().await {
         producer.on_error(e).await;
     }
     producer.on_finished(StreamWrite::EOS).await;
 }
 
-async fn read_stream<T>(stream: Arc<Mutex<T>>, consumer: Arc<dyn StreamConsumer>)
+async fn read_stream<T>(mut stream: T, consumer: Arc<dyn StreamConsumer>)
 where
-    T: AsyncRead + Send + Unpin + ?Sized,
+    T: AsyncRead + Send + Unpin + Sized,
 {
     while let Some(buffer_size) = consumer.next_read().await {
         let mut bytes = vec![0u8; buffer_size.try_into().unwrap_or(usize::MAX)];
-        match stream.lock().await.read(&mut bytes).await {
+        match stream.read(&mut bytes).await {
             Ok(read) => {
                 if read == 0 {
                     consumer.on_bytes(StreamRead::EOS).await;
