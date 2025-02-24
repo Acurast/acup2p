@@ -75,7 +75,7 @@ where
                             tokio::spawn(open_future);
                         }
                     }
-                    Some(Intent::Close) | None => {
+                    None => {
                         if let Err(e) = self.node.close().await {
                             handler.on_error(e).await;
                         }
@@ -274,7 +274,6 @@ pub enum Intent {
         producer: Arc<dyn StreamProducer>,
         consumer: Arc<dyn StreamConsumer>,
     },
-    Close,
 }
 
 #[derive(uniffi::Record)]
@@ -302,15 +301,16 @@ impl Default for Config {
     }
 }
 
-impl<'a> From<&'a Config> for base::Config<'a> {
-    fn from(value: &'a Config) -> Self {
+impl Config {
+    pub(crate) fn into_base<'a, L>(&'a self, log: L) -> base::Config<'a, L> {
         base::Config {
-            identity: value.identity.clone().into(),
-            msg_protocols: value.message_protocols.iter().map(|s| s.as_str()).collect(),
-            stream_protocols: value.stream_protocols.iter().map(|s| s.as_str()).collect(),
-            relay_addrs: value.relay_addresses.iter().map(|s| s.as_str()).collect(),
-            reconn_policy: value.reconnect_policy,
-            idle_conn_timeout: value.idle_connection_timeout,
+            identity: self.identity.clone().into(),
+            msg_protocols: self.message_protocols.iter().map(|s| s.as_str()).collect(),
+            stream_protocols: self.stream_protocols.iter().map(|s| s.as_str()).collect(),
+            relay_addrs: self.relay_addresses.iter().map(|s| s.as_str()).collect(),
+            reconn_policy: self.reconnect_policy,
+            idle_conn_timeout: self.idle_connection_timeout,
+            log,
         }
     }
 }

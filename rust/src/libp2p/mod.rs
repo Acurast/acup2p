@@ -7,6 +7,8 @@ mod relay;
 
 use async_trait::async_trait;
 use futures::{stream, Stream};
+use tracing::subscriber::DefaultGuard;
+use tracing_subscriber::EnvFilter;
 use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
@@ -15,7 +17,6 @@ use std::task::Poll;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::EnvFilter;
 
 use crate::base;
 use crate::base::types::{Event, OutboundProtocolMessage};
@@ -41,11 +42,17 @@ pub struct Node {
         HashMap<Arc<String>, Arc<Mutex<Sender<Result<Box<dyn base::stream::OutgoingStream>>>>>>,
     outgoing_stream_rx:
         HashMap<Arc<String>, Arc<Mutex<Receiver<Result<Box<dyn base::stream::OutgoingStream>>>>>>,
+
+    log_guard: Option<DefaultGuard>,
 }
 
 #[async_trait]
 impl base::Node for Node {
-    async fn new(config: base::Config<'_>) -> Result<Self> {
+    type Log = Option<LogConfig>;
+
+    async fn new(config: base::Config<'_, Self::Log>) -> Result<Self> {
+        let log_guard = set_optional_tracing_subscriber(&config.log);
+
         let (event_tx, event_rx) = channel(DEFAULT_CHANNEL_BUFFER);
         let (intent_tx, intent_rx) = channel(DEFAULT_CHANNEL_BUFFER);
         let ((incoming_stream_tx, incoming_stream_rx), (outgoing_stream_tx, outgoing_stream_rx)) = config
@@ -70,9 +77,13 @@ impl base::Node for Node {
                 },
             );
 
-        let mut inner = NodeInner::new(event_tx, intent_rx, config).await?;
+        let mut inner = NodeInner::new(event_tx, intent_rx, &config).await?;
+
+        let log_config = config.log;
         tokio::spawn(async move {
+            let log_guard = set_optional_tracing_subscriber(&log_config);
             inner.start(&incoming_stream_tx).await;
+            drop(log_guard);
         });
 
         Ok(Node {
@@ -81,6 +92,7 @@ impl base::Node for Node {
             incoming_stream_rx,
             outgoing_stream_tx,
             outgoing_stream_rx,
+            log_guard,
         })
     }
 
@@ -214,30 +226,6 @@ impl Stream for Node {
     }
 }
 
-impl Node {
-    pub fn enable_log(config: LogConfig) {
-        if let Err(e) = Self::init_tracing_subscriber(&config) {
-            match config.level_filter {
-                LevelFilter::OFF => {}
-                _ => println!("Failed to init tracing: {e}"),
-            }
-        }
-    }
-
-    fn init_tracing_subscriber(config: &LogConfig) -> Result<()> {
-        tracing_subscriber::fmt()
-            .with_ansi(config.with_ansi)
-            .with_env_filter(
-                EnvFilter::builder()
-                    .with_default_directive(config.level_filter.into())
-                    .from_env()?,
-            )
-            .init();
-
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone)]
 pub(self) enum Intent {
     DirectMessage {
@@ -283,4 +271,26 @@ impl Default for LogConfig {
             level_filter: LevelFilter::INFO,
         }
     }
+}
+
+fn set_optional_tracing_subscriber(config: &Option<LogConfig>) -> Option<DefaultGuard> {
+    match config {
+        Some(config) => set_tracing_subscriber(config).ok(),
+        None => None,
+    }
+}
+
+fn set_tracing_subscriber(config: &LogConfig) -> Result<DefaultGuard> {
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(config.with_ansi)
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(config.level_filter.into())
+                .from_env()?,
+        )
+        .finish();
+
+    let guard = tracing::subscriber::set_default(subscriber);
+
+    Ok(guard)
 }

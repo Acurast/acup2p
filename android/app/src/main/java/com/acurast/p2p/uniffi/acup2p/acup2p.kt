@@ -3680,9 +3680,6 @@ sealed class Intent: Disposable  {
         companion object
     }
     
-    object Close : Intent()
-    
-    
 
     
     @Suppress("UNNECESSARY_SAFE_CALL") // codegen is much simpler if we unconditionally emit safe calls here
@@ -3720,8 +3717,6 @@ sealed class Intent: Disposable  {
     
                 
             }
-            is Intent.Close -> {// Nothing to destroy
-            }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
     
@@ -3750,7 +3745,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 FfiConverterTypeStreamProducer.read(buf),
                 FfiConverterTypeStreamConsumer.read(buf),
                 )
-            5 -> Intent.Close
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
@@ -3788,12 +3782,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 + FfiConverterTypeStreamConsumer.allocationSize(value.`consumer`)
             )
         }
-        is Intent.Close -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
     }
 
     override fun write(value: Intent, buf: ByteBuffer) {
@@ -3820,10 +3808,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 FfiConverterTypeNodeId.write(value.`node`, buf)
                 FfiConverterTypeStreamProducer.write(value.`producer`, buf)
                 FfiConverterTypeStreamConsumer.write(value.`consumer`, buf)
-                Unit
-            }
-            is Intent.Close -> {
-                buf.putInt(5)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
