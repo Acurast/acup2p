@@ -27,7 +27,7 @@ use crate::types::{MaybeInto, ReconnectPolicy, Result};
 use super::behaviour::Behaviour;
 use super::identity::ed25519;
 use super::node::NodeId;
-use super::dcutr::{Relay, ConnectionStatus};
+use super::dcutr::Relay;
 use super::Intent;
 
 use self::listen::ListenerType;
@@ -52,7 +52,6 @@ pub(super) struct NodeInner {
 
     listeners: HashSet<ListenerId>,
     relays: HashMap<PeerId, Relay>,
-    relayed_connections: HashMap<PeerId, ConnectionStatus>,
     response_channels:
         HashMap<(NodeId, String, String), request_response::ResponseChannel<Vec<u8>>>,
 
@@ -163,7 +162,6 @@ impl NodeInner {
                     Some((peer_id, relay))
                 })
                 .collect(),
-            relayed_connections: HashMap::new(),
             response_channels: HashMap::new(),
 
             reconn_policy: config.reconn_policy,

@@ -145,17 +145,3 @@ impl DerefMut for Relay {
         &mut self.addr
     }
 }
-
-pub(super) enum ConnectionStatus {
-    Circuit(Multiaddr),
-    Direct(Multiaddr),
-}
-
-impl ConnectionStatus {
-    pub(super) fn address(&self) -> &Multiaddr {
-        match self {
-            ConnectionStatus::Circuit(addr) => addr,
-            ConnectionStatus::Direct(addr) => addr,
-        }
-    }
-}

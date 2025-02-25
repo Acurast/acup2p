@@ -27,6 +27,13 @@ pub enum Event {
     Disconnected {
         node: NodeId,
     },
+    ConnectionUpgraded {
+        node: NodeId,
+    },
+    ConnectionError {
+        node: NodeId,
+        cause: String,
+    },
 
     InboundRequest {
         sender: NodeId,
@@ -46,10 +53,6 @@ pub enum Event {
         response: OutboundProtocolResponse,
     },
 
-    ConnectionError {
-        node: NodeId,
-        cause: String,
-    },
     Error {
         cause: String,
     },
@@ -62,6 +65,10 @@ impl fmt::Display for Event {
             Event::Ready => write!(f, "Ready"),
             Event::Connected { node } => write!(f, "Node {node} connected"),
             Event::Disconnected { node } => write!(f, "Node {node} disconnected"),
+            Event::ConnectionUpgraded { node } => write!(f, "Connection to node {node} upgraded"),
+            Event::ConnectionError { node, cause } => {
+                write!(f, "Failed to connect to {node}: {cause}")
+            }
             Event::InboundRequest { sender, request } => {
                 write!(f, "Received a request from {sender}: {request}")
             }
@@ -73,9 +80,6 @@ impl fmt::Display for Event {
             }
             Event::OutboundResponse { receiver, response } => {
                 write!(f, "Sent a response to {receiver}: {response}")
-            }
-            Event::ConnectionError { node, cause } => {
-                write!(f, "Failed to connect to {node}: {cause}")
             }
             Event::Error { cause } => write!(f, "Error: {cause}"),
         }
