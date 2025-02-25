@@ -2,12 +2,11 @@ use std::fmt;
 use std::time::Duration;
 
 use libp2p::identify::Info;
-use libp2p::multiaddr::Protocol;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{dcutr, identify, mdns, relay, PeerId};
 use libp2p_request_response::{self as request_response, InboundFailure, OutboundFailure};
 
-use crate::libp2p::dcutr::{ConnectionStatus, RelayConnectionUpdate};
+use crate::libp2p::dcutr::RelayConnectionUpdate;
 
 use super::super::behaviour::BehaviourEvent;
 use super::super::node::NodeId;
@@ -29,7 +28,7 @@ impl NodeInner {
     pub(super) async fn on_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) {
         match event {
             SwarmEvent::ConnectionEstablished {
-                peer_id, endpoint, ..
+                peer_id, endpoint, connection_id, ..
             } => {
                 let address = match endpoint {
                     libp2p::core::ConnectedPoint::Dialer { address, .. } => address,
@@ -40,20 +39,15 @@ impl NodeInner {
                     Err(addr) => addr,
                 };
 
-                tracing::info!(peer=%peer_id, %address, "connection established");
-                
-                if address.iter().any(|protocol| protocol == Protocol::P2pCircuit) {
-                    self.relayed_connections.insert(peer_id, ConnectionStatus::Circuit(address));
-                } else if self.relayed_connections.contains_key(&peer_id) {
-                    self.relayed_connections.insert(peer_id, ConnectionStatus::Direct(address));
-                } else {
-                    self.notify_connected(&address).await;
-                }
+                tracing::info!(peer=%peer_id, %address, %connection_id, "connection established");
+
+                self.notify_connected(&address).await;
             }
             SwarmEvent::ConnectionClosed {
                 peer_id,
                 cause,
                 endpoint,
+                connection_id,
                 ..
             } => {
                 let address = match endpoint {
@@ -65,7 +59,7 @@ impl NodeInner {
                     Err(addr) => addr,
                 };
 
-                tracing::info!(peer=%peer_id, %address, "connection closed");
+                tracing::info!(peer=%peer_id, %address, %connection_id, "connection closed");
 
                 if let Some(e) = cause {
                     tracing::info!(error=%e, "connection closed unexpectedly");
@@ -76,20 +70,11 @@ impl NodeInner {
                     .await;
                 }
 
-                if let Some(status) = self.relayed_connections.remove(&peer_id) {
-                    match status {
-                        ConnectionStatus::Circuit(_) => { /* no action */ },
-                        ConnectionStatus::Direct(addr) => {
-                            self.notify_connected(&addr).await;
-                        },
-                    }
-                }
-
                 self.notify_disconnected(&address).await;
             }
-            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+            SwarmEvent::OutgoingConnectionError { peer_id, error, connection_id, .. } => {
                 if let Some(peer_id) = peer_id {
-                    tracing::info!(%error, "connection failed");
+                    tracing::info!(%error, %connection_id, "connection failed");
                     self.maybe_reconnect_relay(
                         peer_id,
                         Some(Duration::from_secs(DELAY_SEC_RECONNECT)),
@@ -97,7 +82,7 @@ impl NodeInner {
                     .await;
                 }
                 if let Some(peer_id) = peer_id {
-                    self.notify_connection_error(peer_id, error.to_string())
+                    self.notify_connection_error(&peer_id, error.to_string())
                         .await;
                 }
             }
@@ -267,14 +252,14 @@ impl NodeInner {
     }
 
     async fn on_dcutr_event(&mut self, event: dcutr::Event) {
+        let peer_id = event.remote_peer_id;
         match event.result {
             Ok(_) => { 
-                // no action required, node will get notified through the SwarmEvent::ConnectionEstablished event
+                tracing::info!(%peer_id, "connection to peer upgraded to direct");
+                self.notify_connection_upgraded(&peer_id).await;
             },
-            Err(_) => {
-                if let Some(status) = self.relayed_connections.remove(&event.remote_peer_id) {
-                    self.notify_connected(status.address()).await
-                }
+            Err(e) => {
+                tracing::info!(%peer_id, %e, "connection to peer upgraded to direct")
             },
         }
     }
