@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use tracing::level_filters::LevelFilter;
 
 use crate::base::Node;
@@ -11,12 +9,12 @@ use super::{Config, LogLevel, FFI};
 
 impl FFI<libp2p::Node> {
     pub async fn libp2p(config: Config) -> Result<Self> {
-        libp2p::Node::enable_log(LogConfig {
+        let log = LogConfig {
             with_ansi: false,
             level_filter: config.log_level.into(),
-        });
+        };
 
-        let node = libp2p::Node::new(config.borrow().into()).await?;
+        let node = libp2p::Node::new(config.into_base(Some(log))).await?;
 
         Ok(FFI { node })
     }
