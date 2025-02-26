@@ -57,7 +57,7 @@ impl NodeInner {
                     Ok(addr) => addr,
                     Err(addr) => addr,
                 };
-                
+
                 tracing::info!(peer=%peer_id, %address, "connection closed");
 
                 if let Some(e) = cause {
@@ -80,7 +80,8 @@ impl NodeInner {
                     .await;
                 }
                 if let Some(peer_id) = peer_id {
-                    self.notify_connection_error(peer_id, error.to_string()).await;
+                    self.notify_connection_error(peer_id, error.to_string())
+                        .await;
                 }
             }
             SwarmEvent::NewListenAddr {
