@@ -9,14 +9,31 @@ use std::time::Duration;
 use std::usize;
 
 use async_trait::async_trait;
-use futures::future::FutureExt;
-use futures::{select, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt};
 
 use crate::base::types::OutboundProtocolMessage;
 use crate::base::{self, Node};
 use crate::types::Result;
 
 use self::types::{Event, Identity, NodeId, PublicKey, ReconnectPolicy};
+
+macro_rules! ffi {
+    ($cfg:expr) => {{
+        #[cfg(feature = "libp2p")]
+        {
+            FFI::libp2p($cfg)
+        }
+    }};
+}
+
+macro_rules! spawn {
+    ($fut:expr) => {{
+        #[cfg(feature = "tokio")]
+        {
+            tokio::spawn($fut)
+        }
+    }};
+}
 
 pub struct FFI<T>
 where
@@ -29,56 +46,78 @@ impl<T> FFI<T>
 where
     T: Node + Unpin,
 {
-    async fn run_loop(&mut self, handler: &Arc<dyn Handler>) {
+    #[cfg(feature = "tokio")]
+    async fn run_loop(&mut self, handler: Arc<dyn Handler>) {
+        use tokio::{select, spawn, sync::mpsc::channel};
+
+        let (intents_tx, mut intents_rx) = channel(64);
+        {
+            let handler = handler.clone();
+            spawn(async move {
+                let mut closed = false;
+                while !closed {
+                    let intent = handler.next_intent().await;
+                    closed = intent.is_none();
+
+                    if let Err(e) = intents_tx.send(intent).await {
+                        handler.on_error(e).await;
+                    }
+                }
+            });
+        }
+
         loop {
             select! {
-                event = self.node.next().fuse() => match event {
-                    Some(event) => handler.on_event(event).await,
+                event = self.node.next() => match event {
+                    Some(event) => self.on_event(&handler, event).await,
                     None => break,
                 },
-                intent = handler.next_intent().fuse() => match intent {
-                    Some(Intent::Connect { nodes }) => {
-                        if let Err(e) = self.node.connect(&nodes).await {
-                            handler.on_error(e).await;
-                        }
-                    }
-                    Some(Intent::Disconnect { nodes }) => {
-                        if let Err(e) = self.node.disconnect(&nodes).await {
-                            handler.on_error(e).await;
-                        }
-                    }
-                    Some(Intent::SendMessage { message, nodes }) => {
-                        if let Err(e) = self.node.send_message(message, &nodes).await {
-                            handler.on_error(e).await;
-                        }
-                    }
-                    Some(Intent::OpenOutgoingStream { protocol, node, producer, consumer }) => {
-                        let handler = handler.clone();
-                        let open_stream = self.node.outgoing_stream(&protocol.as_str(), node.clone());
-                        let open_future = async move {
-                            match open_stream.await {
-                                Ok(stream) => {
-                                    let (read, write) = stream.split();
-                                    let write_future = write_stream(write, producer);
-                                    let read_future = read_stream(read, consumer);
+                intent = intents_rx.recv() => match intent {
+                    Some(intent) => self.on_intent(&handler, intent).await,
+                    None => intents_rx.close(),
+                }
+            }
+        }
+    }
 
-                                    if cfg!(feature = "tokio") {
-                                        tokio::spawn(write_future);
-                                        tokio::spawn(read_future);
-                                    }
-                                },
-                                Err(e) => handler.on_error(e).await,
-                            }
-                        };
-                        if cfg!(feature = "tokio") {
-                            tokio::spawn(open_future);
-                        }
+    async fn on_event(&mut self, handler: &Arc<dyn Handler>, event: Event){
+        handler.on_event(event).await;
+    }
+
+    async fn on_intent(&mut self, handler: &Arc<dyn Handler>, intent: Option<Intent>) {
+        match intent {
+            Some(Intent::Connect { nodes }) => {
+                if let Err(e) = self.node.connect(&nodes).await {
+                    handler.on_error(e).await;
+                }
+            }
+            Some(Intent::Disconnect { nodes }) => {
+                if let Err(e) = self.node.disconnect(&nodes).await {
+                    handler.on_error(e).await;
+                }
+            }
+            Some(Intent::SendMessage { message, nodes }) => {
+                if let Err(e) = self.node.send_message(message, &nodes).await {
+                    handler.on_error(e).await;
+                }
+            }
+            Some(Intent::OpenOutgoingStream { protocol, node, producer, consumer }) => {
+                let handler = handler.clone();
+                let open_stream = self.node.outgoing_stream(&protocol.as_str(), node.clone());
+                spawn!(async move {
+                    match open_stream.await {
+                        Ok(stream) => {
+                            let (read, write) = stream.split();
+                            spawn!(write_stream(write, producer));
+                            spawn!(read_stream(read, consumer));
+                        },
+                        Err(e) => handler.on_error(e).await,
                     }
-                    None => {
-                        if let Err(e) = self.node.close().await {
-                            handler.on_error(e).await;
-                        }
-                    }
+                });
+            },
+            None => {
+                if let Err(e) = self.node.close().await {
+                    handler.on_error(e).await;
                 }
             }
         }
@@ -92,27 +131,19 @@ where
             let protocol = handler.protocol();
 
             let mut next_stream = self.node.incoming_streams(&protocol.as_str());
-            let subscribe_future = async move {
+            spawn!(async move {
                 while let Some((node, stream)) = next_stream.next().await {
                     handler.create_stream(node).await;
 
                     let consumer = handler.consumer();
-                    let producer = handler.producer();
-                    let (read, write) = stream.split();
-                    let read_future = read_stream(read, consumer.clone());
-                    let write_future = write_stream(write, producer.clone());
-
+                    let producer = handler.producer();                    
                     handler.finalize_stream().await;
-
-                    if cfg!(feature = "tokio") {
-                        tokio::spawn(read_future);
-                        tokio::spawn(write_future);
-                    }
+                    
+                    let (read, write) = stream.split();
+                    spawn!(read_stream(read, consumer.clone()));
+                    spawn!(write_stream(write, producer.clone()));
                 }
-            };
-            if cfg!(feature = "tokio") {
-                tokio::spawn(subscribe_future);
-            }
+            });
         }
     }
 }
@@ -166,22 +197,17 @@ pub async fn bind(
     incoming_stream_handlers: Vec<Arc<dyn IncomingStreamHandler>>,
     config: Config,
 ) {
-    if let Err(e) = __bind(&handler, incoming_stream_handlers, config).await {
+    if let Err(e) = __bind(handler.clone(), incoming_stream_handlers, config).await {
         handler.on_error(e).await;
     }
 }
 
 async fn __bind(
-    handler: &Arc<dyn Handler>,
+    handler: Arc<dyn Handler>,
     incoming_stream_handlers: Vec<Arc<dyn IncomingStreamHandler>>,
     config: Config,
 ) -> Result<()> {
-    let mut ffi;
-    #[cfg(feature = "libp2p")]
-    {
-        ffi = FFI::libp2p(config).await?;
-    }
-
+    let mut ffi = ffi!(config).await?;
     ffi.read_incoming_streams(incoming_stream_handlers);
     ffi.run_loop(handler).await;
 
@@ -255,7 +281,7 @@ impl dyn StreamProducer {
     }
 }
 
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Debug, Clone)]
 pub enum Intent {
     Connect {
         nodes: Vec<NodeId>,
