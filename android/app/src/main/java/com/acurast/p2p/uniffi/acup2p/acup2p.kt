@@ -875,6 +875,8 @@ internal open class UniffiVTableCallbackInterfaceStreamProducer(
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -947,6 +949,8 @@ internal interface UniffiLib : Library {
     fun uniffi_acup2p_fn_func_bind(`handler`: Pointer,`incomingStreamHandlers`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,
     ): Long
     fun uniffi_acup2p_fn_func_default_config(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_acup2p_fn_func_node_id_from_public_key(`pk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun ffi_acup2p_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1064,6 +1068,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_acup2p_checksum_func_default_config(
     ): Short
+    fun uniffi_acup2p_checksum_func_node_id_from_public_key(
+    ): Short
     fun uniffi_acup2p_checksum_method_handler_on_event(
     ): Short
     fun uniffi_acup2p_checksum_method_handler_next_intent(
@@ -1107,6 +1113,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_acup2p_checksum_func_default_config() != 48253.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_acup2p_checksum_func_node_id_from_public_key() != 19406.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_acup2p_checksum_method_handler_on_event() != 56660.toShort()) {
@@ -3258,6 +3267,65 @@ public object FfiConverterTypeOutboundProtocolResponse: FfiConverterRustBuffer<O
 
 
 
+
+
+sealed class Exception: kotlin.Exception() {
+    
+    class DecodingException(
+        
+        val v1: kotlin.String
+        ) : Exception() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<Exception> {
+        override fun lift(error_buf: RustBuffer.ByValue): Exception = FfiConverterTypeError.lift(error_buf)
+    }
+
+    
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeError : FfiConverterRustBuffer<Exception> {
+    override fun read(buf: ByteBuffer): Exception {
+        
+
+        return when(buf.getInt()) {
+            1 -> Exception.DecodingException(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: Exception): ULong {
+        return when(value) {
+            is Exception.DecodingException -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: Exception, buf: ByteBuffer) {
+        when(value) {
+            is Exception.DecodingException -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+
+}
+
+
+
 sealed class Event {
     
     data class ListeningOn(
@@ -3308,7 +3376,7 @@ sealed class Event {
         companion object
     }
     
-    data class Error(
+    data class Exception(
         val `cause`: kotlin.String) : Event() {
         companion object
     }
@@ -3354,7 +3422,7 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 FfiConverterTypeNodeId.read(buf),
                 FfiConverterString.read(buf),
                 )
-            10 -> Event.Error(
+            10 -> Event.Exception(
                 FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
@@ -3429,7 +3497,7 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 + FfiConverterString.allocationSize(value.`cause`)
             )
         }
-        is Event.Error -> {
+        is Event.Exception -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
@@ -3489,7 +3557,7 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 FfiConverterString.write(value.`cause`, buf)
                 Unit
             }
-            is Event.Error -> {
+            is Event.Exception -> {
                 buf.putInt(10)
                 FfiConverterString.write(value.`cause`, buf)
                 Unit
@@ -3612,9 +3680,6 @@ sealed class Intent: Disposable  {
         companion object
     }
     
-    object Close : Intent()
-    
-    
 
     
     @Suppress("UNNECESSARY_SAFE_CALL") // codegen is much simpler if we unconditionally emit safe calls here
@@ -3652,8 +3717,6 @@ sealed class Intent: Disposable  {
     
                 
             }
-            is Intent.Close -> {// Nothing to destroy
-            }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
     
@@ -3682,7 +3745,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 FfiConverterTypeStreamProducer.read(buf),
                 FfiConverterTypeStreamConsumer.read(buf),
                 )
-            5 -> Intent.Close
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
@@ -3720,12 +3782,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 + FfiConverterTypeStreamConsumer.allocationSize(value.`consumer`)
             )
         }
-        is Intent.Close -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
     }
 
     override fun write(value: Intent, buf: ByteBuffer) {
@@ -3752,10 +3808,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 FfiConverterTypeNodeId.write(value.`node`, buf)
                 FfiConverterTypeStreamProducer.write(value.`producer`, buf)
                 FfiConverterTypeStreamConsumer.write(value.`consumer`, buf)
-                Unit
-            }
-            is Intent.Close -> {
-                buf.putInt(5)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -3930,6 +3982,56 @@ public object FfiConverterTypeOutboundProtocolMessage : FfiConverterRustBuffer<O
             is OutboundProtocolMessage.Response -> {
                 buf.putInt(2)
                 FfiConverterTypeOutboundProtocolResponse.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
+sealed class PublicKey {
+    
+    data class Ed25519(
+        val v1: kotlin.ByteArray) : PublicKey() {
+        companion object
+    }
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePublicKey : FfiConverterRustBuffer<PublicKey>{
+    override fun read(buf: ByteBuffer): PublicKey {
+        return when(buf.getInt()) {
+            1 -> PublicKey.Ed25519(
+                FfiConverterByteArray.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: PublicKey) = when(value) {
+        is PublicKey.Ed25519 -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterByteArray.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: PublicKey, buf: ByteBuffer) {
+        when(value) {
+            is PublicKey.Ed25519 -> {
+                buf.putInt(1)
+                FfiConverterByteArray.write(value.v1, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -4434,6 +4536,16 @@ public object FfiConverterSequenceTypeNodeId: FfiConverterRustBuffer<List<NodeId
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_acup2p_fn_func_default_config(
         _status)
+}
+    )
+    }
+    
+
+    @Throws(Exception::class) fun `nodeIdFromPublicKey`(`pk`: PublicKey): NodeId {
+            return FfiConverterTypeNodeId.lift(
+    uniffiRustCallWithError(Exception) { _status ->
+    UniffiLib.INSTANCE.uniffi_acup2p_fn_func_node_id_from_public_key(
+        FfiConverterTypePublicKey.lower(`pk`),_status)
 }
     )
     }

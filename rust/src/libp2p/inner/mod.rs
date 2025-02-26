@@ -60,10 +60,10 @@ pub(super) struct NodeInner {
 }
 
 impl NodeInner {
-    pub(super) async fn new(
+    pub(super) async fn new<L>(
         event_tx: Sender<Event>,
         intent_rx: Receiver<Intent>,
-        config: base::Config<'_>,
+        config: &base::Config<'_, L>,
     ) -> Result<Self> {
         let security_upgrade = (tls::Config::new, noise::Config::new);
 
