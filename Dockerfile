@@ -1,4 +1,4 @@
-FROM rust:1.82.0 AS prepare
+FROM rust:1.85.0 AS prepare
 
 WORKDIR /usr/src/acup2p
 
@@ -9,7 +9,7 @@ RUN cargo build --release
 RUN rm src/*.rs
 RUN rm ./target/release/deps/acup2p*
 
-FROM rust:1.82.0 AS build
+FROM rust:1.85.0 AS build
 
 WORKDIR /usr/src/acup2p
 

@@ -27,7 +27,7 @@ use crate::types::{MaybeInto, ReconnectPolicy, Result};
 use super::behaviour::Behaviour;
 use super::identity::ed25519;
 use super::node::NodeId;
-use super::relay::Relay;
+use super::dcutr::Relay;
 use super::Intent;
 
 use self::listen::ListenerType;
