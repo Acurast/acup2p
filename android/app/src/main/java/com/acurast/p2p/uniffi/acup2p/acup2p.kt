@@ -3346,6 +3346,17 @@ sealed class Event {
         companion object
     }
     
+    data class ConnectionUpgraded(
+        val `node`: NodeId) : Event() {
+        companion object
+    }
+    
+    data class ConnectionError(
+        val `node`: NodeId, 
+        val `cause`: kotlin.String) : Event() {
+        companion object
+    }
+    
     data class InboundRequest(
         val `sender`: NodeId, 
         val `request`: InboundProtocolRequest) : Event() {
@@ -3367,12 +3378,6 @@ sealed class Event {
     data class OutboundResponse(
         val `receiver`: NodeId, 
         val `response`: OutboundProtocolResponse) : Event() {
-        companion object
-    }
-    
-    data class ConnectionError(
-        val `node`: NodeId, 
-        val `cause`: kotlin.String) : Event() {
         companion object
     }
     
@@ -3402,27 +3407,30 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             4 -> Event.Disconnected(
                 FfiConverterTypeNodeId.read(buf),
                 )
-            5 -> Event.InboundRequest(
+            5 -> Event.ConnectionUpgraded(
                 FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeInboundProtocolRequest.read(buf),
                 )
-            6 -> Event.InboundResponse(
-                FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeInboundProtocolResponse.read(buf),
-                )
-            7 -> Event.OutboundRequest(
-                FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeOutboundProtocolRequest.read(buf),
-                )
-            8 -> Event.OutboundResponse(
-                FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeOutboundProtocolResponse.read(buf),
-                )
-            9 -> Event.ConnectionError(
+            6 -> Event.ConnectionError(
                 FfiConverterTypeNodeId.read(buf),
                 FfiConverterString.read(buf),
                 )
-            10 -> Event.Exception(
+            7 -> Event.InboundRequest(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterTypeInboundProtocolRequest.read(buf),
+                )
+            8 -> Event.InboundResponse(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterTypeInboundProtocolResponse.read(buf),
+                )
+            9 -> Event.OutboundRequest(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterTypeOutboundProtocolRequest.read(buf),
+                )
+            10 -> Event.OutboundResponse(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterTypeOutboundProtocolResponse.read(buf),
+                )
+            11 -> Event.Exception(
                 FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
@@ -3457,6 +3465,21 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 + FfiConverterTypeNodeId.allocationSize(value.`node`)
             )
         }
+        is Event.ConnectionUpgraded -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeNodeId.allocationSize(value.`node`)
+            )
+        }
+        is Event.ConnectionError -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeNodeId.allocationSize(value.`node`)
+                + FfiConverterString.allocationSize(value.`cause`)
+            )
+        }
         is Event.InboundRequest -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
@@ -3489,14 +3512,6 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 + FfiConverterTypeOutboundProtocolResponse.allocationSize(value.`response`)
             )
         }
-        is Event.ConnectionError -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterTypeNodeId.allocationSize(value.`node`)
-                + FfiConverterString.allocationSize(value.`cause`)
-            )
-        }
         is Event.Exception -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
@@ -3527,38 +3542,43 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 FfiConverterTypeNodeId.write(value.`node`, buf)
                 Unit
             }
-            is Event.InboundRequest -> {
+            is Event.ConnectionUpgraded -> {
                 buf.putInt(5)
+                FfiConverterTypeNodeId.write(value.`node`, buf)
+                Unit
+            }
+            is Event.ConnectionError -> {
+                buf.putInt(6)
+                FfiConverterTypeNodeId.write(value.`node`, buf)
+                FfiConverterString.write(value.`cause`, buf)
+                Unit
+            }
+            is Event.InboundRequest -> {
+                buf.putInt(7)
                 FfiConverterTypeNodeId.write(value.`sender`, buf)
                 FfiConverterTypeInboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.InboundResponse -> {
-                buf.putInt(6)
+                buf.putInt(8)
                 FfiConverterTypeNodeId.write(value.`sender`, buf)
                 FfiConverterTypeInboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
             is Event.OutboundRequest -> {
-                buf.putInt(7)
+                buf.putInt(9)
                 FfiConverterTypeNodeId.write(value.`receiver`, buf)
                 FfiConverterTypeOutboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.OutboundResponse -> {
-                buf.putInt(8)
+                buf.putInt(10)
                 FfiConverterTypeNodeId.write(value.`receiver`, buf)
                 FfiConverterTypeOutboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
-            is Event.ConnectionError -> {
-                buf.putInt(9)
-                FfiConverterTypeNodeId.write(value.`node`, buf)
-                FfiConverterString.write(value.`cause`, buf)
-                Unit
-            }
             is Event.Exception -> {
-                buf.putInt(10)
+                buf.putInt(11)
                 FfiConverterString.write(value.`cause`, buf)
                 Unit
             }

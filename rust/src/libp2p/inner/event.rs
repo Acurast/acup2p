@@ -11,16 +11,6 @@ impl NodeInner {
             .await;
     }
 
-    pub(super) async fn notify_connection_error(&mut self, peer_id: PeerId, error: String) {
-        self.notify(base::types::Event::ConnectionError {
-            node: base::types::NodeId::Peer {
-                peer_id: peer_id.to_string(),
-            },
-            cause: error,
-        })
-        .await;
-    }
-
     pub(super) async fn notify_listening_on(&mut self, addr: &Multiaddr) {
         self.notify(base::types::Event::ListeningOn {
             address: addr.to_string(),
@@ -46,6 +36,25 @@ impl NodeInner {
             node: base::types::NodeId::Address {
                 address: addr.to_string(),
             },
+        })
+        .await;
+    }
+
+    pub(super) async fn notify_connection_upgraded(&mut self, peer_id: &PeerId) {
+        self.notify(base::types::Event::ConnectionUpgraded {
+            node: base::types::NodeId::Peer {
+                peer_id: peer_id.to_string(),
+            },
+        })
+        .await;
+    }
+
+    pub(super) async fn notify_connection_error(&mut self, peer_id: &PeerId, error: String) {
+        self.notify(base::types::Event::ConnectionError {
+            node: base::types::NodeId::Peer {
+                peer_id: peer_id.to_string(),
+            },
+            cause: error,
         })
         .await;
     }

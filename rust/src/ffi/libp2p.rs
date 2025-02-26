@@ -8,7 +8,7 @@ use super::{Config, LogLevel, FFI};
 
 impl FFI<libp2p::Node> {
     pub async fn libp2p(config: Config) -> Result<Self> {
-        let log = LogConfig {
+        let log = libp2p::LogConfig {
             with_ansi: false,
             level_filter: config.log_level.into(),
         };
