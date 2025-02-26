@@ -4,7 +4,6 @@ mod inner;
 mod message;
 pub mod node;
 mod dcutr;
-mod relay;
 
 use async_trait::async_trait;
 use futures::{stream, Stream};
