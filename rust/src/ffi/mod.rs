@@ -9,15 +9,31 @@ use std::time::Duration;
 use std::usize;
 
 use async_trait::async_trait;
-use futures::future::FutureExt;
-use futures::lock::Mutex;
-use futures::{select, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt};
 
 use crate::base::types::OutboundProtocolMessage;
 use crate::base::{self, Node};
 use crate::types::Result;
 
-use self::types::{Event, Identity, NodeId, ReconnectPolicy};
+use self::types::{Event, Identity, NodeId, PublicKey, ReconnectPolicy};
+
+macro_rules! ffi {
+    ($cfg:expr) => {{
+        #[cfg(feature = "libp2p")]
+        {
+            FFI::libp2p($cfg)
+        }
+    }};
+}
+
+macro_rules! spawn {
+    ($fut:expr) => {{
+        #[cfg(feature = "tokio")]
+        {
+            tokio::spawn($fut)
+        }
+    }};
+}
 
 pub struct FFI<T>
 where
@@ -30,56 +46,78 @@ impl<T> FFI<T>
 where
     T: Node + Unpin,
 {
-    async fn run_loop(&mut self, handler: &Arc<dyn Handler>) {
+    #[cfg(feature = "tokio")]
+    async fn run_loop(&mut self, handler: Arc<dyn Handler>) {
+        use tokio::{select, spawn, sync::mpsc::channel};
+
+        let (intents_tx, mut intents_rx) = channel(64);
+        {
+            let handler = handler.clone();
+            spawn(async move {
+                let mut closed = false;
+                while !closed {
+                    let intent = handler.next_intent().await;
+                    closed = intent.is_none();
+
+                    if let Err(e) = intents_tx.send(intent).await {
+                        handler.on_error(e).await;
+                    }
+                }
+            });
+        }
+
         loop {
             select! {
-                event = self.node.next().fuse() => match event {
-                    Some(event) => handler.on_event(event).await,
+                event = self.node.next() => match event {
+                    Some(event) => self.on_event(&handler, event).await,
                     None => break,
                 },
-                intent = handler.next_intent().fuse() => match intent {
-                    Some(Intent::Connect { nodes }) => {
-                        if let Err(e) = self.node.connect(&nodes).await {
-                            handler.on_error(e).await;
-                        }
-                    }
-                    Some(Intent::Disconnect { nodes }) => {
-                        if let Err(e) = self.node.disconnect(&nodes).await {
-                            handler.on_error(e).await;
-                        }
-                    }
-                    Some(Intent::SendMessage { message, nodes }) => {
-                        if let Err(e) = self.node.send_message(message, &nodes).await {
-                            handler.on_error(e).await;
-                        }
-                    }
-                    Some(Intent::OpenOutgoingStream { protocol, node, producer, consumer }) => {
-                        let handler = handler.clone();
-                        let open_stream = self.node.outgoing_stream(&protocol.as_str(), node.clone());
-                        let open_future = async move {
-                            match open_stream.await {
-                                Ok(stream) => {
-                                    let stream = Arc::new(Mutex::new(stream));
-                                    let write_future = write_stream(stream.clone(), producer);
-                                    let read_future = read_stream(stream.clone(), consumer);
+                intent = intents_rx.recv() => match intent {
+                    Some(intent) => self.on_intent(&handler, intent).await,
+                    None => intents_rx.close(),
+                }
+            }
+        }
+    }
 
-                                    if cfg!(feature = "tokio") {
-                                        tokio::spawn(write_future);
-                                        tokio::spawn(read_future);
-                                    }
-                                },
-                                Err(e) => handler.on_error(e).await,
-                            }
-                        };
-                        if cfg!(feature = "tokio") {
-                            tokio::spawn(open_future);
-                        }
+    async fn on_event(&mut self, handler: &Arc<dyn Handler>, event: Event){
+        handler.on_event(event).await;
+    }
+
+    async fn on_intent(&mut self, handler: &Arc<dyn Handler>, intent: Option<Intent>) {
+        match intent {
+            Some(Intent::Connect { nodes }) => {
+                if let Err(e) = self.node.connect(&nodes).await {
+                    handler.on_error(e).await;
+                }
+            }
+            Some(Intent::Disconnect { nodes }) => {
+                if let Err(e) = self.node.disconnect(&nodes).await {
+                    handler.on_error(e).await;
+                }
+            }
+            Some(Intent::SendMessage { message, nodes }) => {
+                if let Err(e) = self.node.send_message(message, &nodes).await {
+                    handler.on_error(e).await;
+                }
+            }
+            Some(Intent::OpenOutgoingStream { protocol, node, producer, consumer }) => {
+                let handler = handler.clone();
+                let open_stream = self.node.outgoing_stream(&protocol.as_str(), node.clone());
+                spawn!(async move {
+                    match open_stream.await {
+                        Ok(stream) => {
+                            let (read, write) = stream.split();
+                            spawn!(write_stream(write, producer));
+                            spawn!(read_stream(read, consumer));
+                        },
+                        Err(e) => handler.on_error(e).await,
                     }
-                    Some(Intent::Close) | None => {
-                        if let Err(e) = self.node.close().await {
-                            handler.on_error(e).await;
-                        }
-                    }
+                });
+            },
+            None => {
+                if let Err(e) = self.node.close().await {
+                    handler.on_error(e).await;
                 }
             }
         }
@@ -93,54 +131,46 @@ where
             let protocol = handler.protocol();
 
             let mut next_stream = self.node.incoming_streams(&protocol.as_str());
-            let subscribe_future = async move {
+            spawn!(async move {
                 while let Some((node, stream)) = next_stream.next().await {
                     handler.create_stream(node).await;
 
                     let consumer = handler.consumer();
-                    let producer = handler.producer();
-                    let stream = Arc::new(Mutex::new(stream));
-                    let read_future = read_stream(stream.clone(), consumer.clone());
-                    let write_future = write_stream(stream.clone(), producer.clone());
-
+                    let producer = handler.producer();                    
                     handler.finalize_stream().await;
-
-                    if cfg!(feature = "tokio") {
-                        tokio::spawn(read_future);
-                        tokio::spawn(write_future);
-                    }
+                    
+                    let (read, write) = stream.split();
+                    spawn!(read_stream(read, consumer.clone()));
+                    spawn!(write_stream(write, producer.clone()));
                 }
-            };
-            if cfg!(feature = "tokio") {
-                tokio::spawn(subscribe_future);
-            }
+            });
         }
     }
 }
 
-async fn write_stream<T>(stream: Arc<Mutex<T>>, producer: Arc<dyn StreamProducer>)
+async fn write_stream<T>(mut stream: T, producer: Arc<dyn StreamProducer>)
 where
-    T: AsyncWrite + Send + Unpin + ?Sized,
+    T: AsyncWrite + Send + Unpin + Sized,
 {
     while let Some(bytes) = producer.next_bytes().await {
-        if let Err(e) = stream.lock().await.write_all(&bytes).await {
+        if let Err(e) = stream.write_all(&bytes).await {
             producer.on_error(e).await;
         }
         producer.on_finished(StreamWrite::Ok).await;
     }
-    if let Err(e) = stream.lock().await.close().await {
+    if let Err(e) = stream.close().await {
         producer.on_error(e).await;
     }
     producer.on_finished(StreamWrite::EOS).await;
 }
 
-async fn read_stream<T>(stream: Arc<Mutex<T>>, consumer: Arc<dyn StreamConsumer>)
+async fn read_stream<T>(mut stream: T, consumer: Arc<dyn StreamConsumer>)
 where
-    T: AsyncRead + Send + Unpin + ?Sized,
+    T: AsyncRead + Send + Unpin + Sized,
 {
     while let Some(buffer_size) = consumer.next_read().await {
         let mut bytes = vec![0u8; buffer_size.try_into().unwrap_or(usize::MAX)];
-        match stream.lock().await.read(&mut bytes).await {
+        match stream.read(&mut bytes).await {
             Ok(read) => {
                 if read == 0 {
                     consumer.on_bytes(StreamRead::EOS).await;
@@ -167,22 +197,17 @@ pub async fn bind(
     incoming_stream_handlers: Vec<Arc<dyn IncomingStreamHandler>>,
     config: Config,
 ) {
-    if let Err(e) = __bind(&handler, incoming_stream_handlers, config).await {
+    if let Err(e) = __bind(handler.clone(), incoming_stream_handlers, config).await {
         handler.on_error(e).await;
     }
 }
 
 async fn __bind(
-    handler: &Arc<dyn Handler>,
+    handler: Arc<dyn Handler>,
     incoming_stream_handlers: Vec<Arc<dyn IncomingStreamHandler>>,
     config: Config,
 ) -> Result<()> {
-    let mut ffi;
-    #[cfg(feature = "libp2p")]
-    {
-        ffi = FFI::libp2p(config).await?;
-    }
-
+    let mut ffi = ffi!(config).await?;
     ffi.read_incoming_streams(incoming_stream_handlers);
     ffi.run_loop(handler).await;
 
@@ -256,7 +281,7 @@ impl dyn StreamProducer {
     }
 }
 
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Debug, Clone)]
 pub enum Intent {
     Connect {
         nodes: Vec<NodeId>,
@@ -274,7 +299,6 @@ pub enum Intent {
         producer: Arc<dyn StreamProducer>,
         consumer: Arc<dyn StreamConsumer>,
     },
-    Close,
 }
 
 #[derive(uniffi::Record)]
@@ -302,15 +326,16 @@ impl Default for Config {
     }
 }
 
-impl<'a> From<&'a Config> for base::Config<'a> {
-    fn from(value: &'a Config) -> Self {
+impl Config {
+    pub(crate) fn into_base<'a, L>(&'a self, log: L) -> base::Config<'a, L> {
         base::Config {
-            identity: value.identity.clone().into(),
-            msg_protocols: value.message_protocols.iter().map(|s| s.as_str()).collect(),
-            stream_protocols: value.stream_protocols.iter().map(|s| s.as_str()).collect(),
-            relay_addrs: value.relay_addresses.iter().map(|s| s.as_str()).collect(),
-            reconn_policy: value.reconnect_policy,
-            idle_conn_timeout: value.idle_connection_timeout,
+            identity: self.identity.clone().into(),
+            msg_protocols: self.message_protocols.iter().map(|s| s.as_str()).collect(),
+            stream_protocols: self.stream_protocols.iter().map(|s| s.as_str()).collect(),
+            relay_addrs: self.relay_addresses.iter().map(|s| s.as_str()).collect(),
+            reconn_policy: self.reconnect_policy,
+            idle_conn_timeout: self.idle_connection_timeout,
+            log,
         }
     }
 }
@@ -323,4 +348,27 @@ pub enum LogLevel {
     Info,
     Debug,
     Trace,
+}
+
+#[derive(uniffi::Enum, Debug)]
+enum Error {
+    DecodingError(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::DecodingError(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+#[uniffi::export]
+fn node_id_from_public_key(pk: PublicKey) -> Result<NodeId, Error> {
+    let pk = base::types::PublicKey::from(pk);
+    let node_id = pk.try_into().map_err(|err| Error::DecodingError(err))?;
+
+    Ok(node_id)
 }

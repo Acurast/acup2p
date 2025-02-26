@@ -1,7 +1,9 @@
 package com.acurast.p2p
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -30,6 +32,8 @@ import kotlin.coroutines.CoroutineContext
 
 public class Acup2p(coroutineContext: CoroutineContext, config: Config = Config.Default) {
     private val coroutineScope = CoroutineScope(coroutineContext + SupervisorJob(coroutineContext[Job]))
+    private val done: CompletableDeferred<Unit> = CompletableDeferred()
+
     private val handler: Handler = Handler()
     private val incomingStreamHandlers: List<IncomingStreamHandler> =
         config.streamProtocols.map { IncomingStreamHandler(it) }
@@ -43,10 +47,17 @@ public class Acup2p(coroutineContext: CoroutineContext, config: Config = Config.
             .merge()
 
     init {
+        CoroutineScope(Dispatchers.Default).launch {
+            bind(handler, incomingStreamHandlers, config)
+            done.complete(Unit)
+        }
+
         coroutineScope.launch {
             try {
-                bind(handler, incomingStreamHandlers, config)
-            } catch (e: CancellationException) { /* no action */ }
+                done.await()
+            } catch (e: CancellationException) {
+                handler.intents.close()
+            }
         }
     }
 
@@ -77,8 +88,7 @@ public class Acup2p(coroutineContext: CoroutineContext, config: Config = Config.
         return stream
     }
 
-    public suspend fun close() {
-        handler.intents.send(Intent.Close)
+    public fun close() {
         coroutineScope.cancel()
     }
 

@@ -875,21 +875,95 @@ internal open class UniffiVTableCallbackInterfaceStreamProducer(
 
 
 
+
+
+// For large crates we prevent `MethodTooLargeException` (see #2340)
+// N.B. the name of the extension is very misleading, since it is 
+// rather `InterfaceTooLargeException`, caused by too many methods 
+// in the interface for large crates.
+//
+// By splitting the otherwise huge interface into two parts
+// * UniffiLib 
+// * IntegrityCheckingUniffiLib (this)
+// we allow for ~2x as many methods in the UniffiLib interface.
+// 
+// The `ffi_uniffi_contract_version` method and all checksum methods are put 
+// into `IntegrityCheckingUniffiLib` and these methods are called only once,
+// when the library is loaded.
+internal interface IntegrityCheckingUniffiLib : Library {
+    // Integrity check functions only
+    fun uniffi_acup2p_checksum_func_bind(
+): Short
+fun uniffi_acup2p_checksum_func_default_config(
+): Short
+fun uniffi_acup2p_checksum_func_node_id_from_public_key(
+): Short
+fun uniffi_acup2p_checksum_method_handler_on_event(
+): Short
+fun uniffi_acup2p_checksum_method_handler_next_intent(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_protocol(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_consumer(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_producer(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_create_stream(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_finalize_stream(
+): Short
+fun uniffi_acup2p_checksum_method_streamconsumer_next_read(
+): Short
+fun uniffi_acup2p_checksum_method_streamconsumer_on_bytes(
+): Short
+fun uniffi_acup2p_checksum_method_streamproducer_next_bytes(
+): Short
+fun uniffi_acup2p_checksum_method_streamproducer_on_finished(
+): Short
+fun ffi_acup2p_uniffi_contract_version(
+): Int
+
+}
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
-
 internal interface UniffiLib : Library {
     companion object {
         internal val INSTANCE: UniffiLib by lazy {
-            loadIndirect<UniffiLib>(componentName = "acup2p")
-            .also { lib: UniffiLib ->
-                uniffiCheckContractApiVersion(lib)
-                uniffiCheckApiChecksums(lib)
-                uniffiCallbackInterfaceHandler.register(lib)
-                uniffiCallbackInterfaceIncomingStreamHandler.register(lib)
-                uniffiCallbackInterfaceStreamConsumer.register(lib)
-                uniffiCallbackInterfaceStreamProducer.register(lib)
+            val componentName = "acup2p"
+            // For large crates we prevent `MethodTooLargeException` (see #2340)
+            // N.B. the name of the extension is very misleading, since it is 
+            // rather `InterfaceTooLargeException`, caused by too many methods 
+            // in the interface for large crates.
+            //
+            // By splitting the otherwise huge interface into two parts
+            // * UniffiLib (this)
+            // * IntegrityCheckingUniffiLib
+            // And all checksum methods are put into `IntegrityCheckingUniffiLib`
+            // we allow for ~2x as many methods in the UniffiLib interface.
+            // 
+            // Thus we first load the library with `loadIndirect` as `IntegrityCheckingUniffiLib`
+            // so that we can (optionally!) call `uniffiCheckApiChecksums`...
+            loadIndirect<IntegrityCheckingUniffiLib>(componentName)
+                .also { lib: IntegrityCheckingUniffiLib ->
+                    uniffiCheckContractApiVersion(lib)
+                    uniffiCheckApiChecksums(lib)
                 }
+            // ... and then we load the library as `UniffiLib`
+            // N.B. we cannot use `loadIndirect` once and then try to cast it to `UniffiLib`
+            // => results in `java.lang.ClassCastException: com.sun.proxy.$Proxy cannot be cast to ...`
+            // error. So we must call `loadIndirect` twice. For crates large enough
+            // to trigger this issue, the performance impact is negligible, running on
+            // a macOS M1 machine the `loadIndirect` call takes ~50ms.
+            val lib = loadIndirect<UniffiLib>(componentName)
+            // No need to check the contract version and checksums, since 
+            // we already did that with `IntegrityCheckingUniffiLib` above.
+            uniffiCallbackInterfaceHandler.register(lib)
+            uniffiCallbackInterfaceIncomingStreamHandler.register(lib)
+            uniffiCallbackInterfaceStreamConsumer.register(lib)
+            uniffiCallbackInterfaceStreamProducer.register(lib)
+            // Loading of library with integrity check done.
+            lib
         }
         
         // The Cleaner for the whole library
@@ -898,215 +972,192 @@ internal interface UniffiLib : Library {
         }
     }
 
+    // FFI functions
     fun uniffi_acup2p_fn_clone_handler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_free_handler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_fn_init_callback_vtable_handler(`vtable`: UniffiVTableCallbackInterfaceHandler,
-    ): Unit
-    fun uniffi_acup2p_fn_method_handler_on_event(`ptr`: Pointer,`event`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_method_handler_next_intent(`ptr`: Pointer,
-    ): Long
-    fun uniffi_acup2p_fn_clone_incomingstreamhandler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_free_incomingstreamhandler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_fn_init_callback_vtable_incomingstreamhandler(`vtable`: UniffiVTableCallbackInterfaceIncomingStreamHandler,
-    ): Unit
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_protocol(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_consumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_producer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_create_stream(`ptr`: Pointer,`node`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_finalize_stream(`ptr`: Pointer,
-    ): Long
-    fun uniffi_acup2p_fn_clone_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_free_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_fn_init_callback_vtable_streamconsumer(`vtable`: UniffiVTableCallbackInterfaceStreamConsumer,
-    ): Unit
-    fun uniffi_acup2p_fn_method_streamconsumer_next_read(`ptr`: Pointer,
-    ): Long
-    fun uniffi_acup2p_fn_method_streamconsumer_on_bytes(`ptr`: Pointer,`read`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_clone_streamproducer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_free_streamproducer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_fn_init_callback_vtable_streamproducer(`vtable`: UniffiVTableCallbackInterfaceStreamProducer,
-    ): Unit
-    fun uniffi_acup2p_fn_method_streamproducer_next_bytes(`ptr`: Pointer,
-    ): Long
-    fun uniffi_acup2p_fn_method_streamproducer_on_finished(`ptr`: Pointer,`write`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_func_bind(`handler`: Pointer,`incomingStreamHandlers`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_func_default_config(uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun ffi_acup2p_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_u8(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_u8(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
-    fun ffi_acup2p_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_i8(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_i8(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
-    fun ffi_acup2p_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_u16(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_u16(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Short
-    fun ffi_acup2p_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_i16(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_i16(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Short
-    fun ffi_acup2p_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_u32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_u32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    fun ffi_acup2p_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_i32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_i32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    fun ffi_acup2p_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_u64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_u64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
-    fun ffi_acup2p_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_i64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_i64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
-    fun ffi_acup2p_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_f32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_f32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Float
-    fun ffi_acup2p_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_f64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_f64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Double
-    fun ffi_acup2p_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_pointer(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_pointer(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun ffi_acup2p_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_rust_buffer(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_rust_buffer(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_void(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_void(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_checksum_func_bind(
-    ): Short
-    fun uniffi_acup2p_checksum_func_default_config(
-    ): Short
-    fun uniffi_acup2p_checksum_method_handler_on_event(
-    ): Short
-    fun uniffi_acup2p_checksum_method_handler_next_intent(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_protocol(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_consumer(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_producer(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_create_stream(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_finalize_stream(
-    ): Short
-    fun uniffi_acup2p_checksum_method_streamconsumer_next_read(
-    ): Short
-    fun uniffi_acup2p_checksum_method_streamconsumer_on_bytes(
-    ): Short
-    fun uniffi_acup2p_checksum_method_streamproducer_next_bytes(
-    ): Short
-    fun uniffi_acup2p_checksum_method_streamproducer_on_finished(
-    ): Short
-    fun ffi_acup2p_uniffi_contract_version(
-    ): Int
-    
+): Pointer
+fun uniffi_acup2p_fn_free_handler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_acup2p_fn_init_callback_vtable_handler(`vtable`: UniffiVTableCallbackInterfaceHandler,
+): Unit
+fun uniffi_acup2p_fn_method_handler_on_event(`ptr`: Pointer,`event`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_method_handler_next_intent(`ptr`: Pointer,
+): Long
+fun uniffi_acup2p_fn_clone_incomingstreamhandler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_free_incomingstreamhandler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_acup2p_fn_init_callback_vtable_incomingstreamhandler(`vtable`: UniffiVTableCallbackInterfaceIncomingStreamHandler,
+): Unit
+fun uniffi_acup2p_fn_method_incomingstreamhandler_protocol(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_acup2p_fn_method_incomingstreamhandler_consumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_method_incomingstreamhandler_producer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_method_incomingstreamhandler_create_stream(`ptr`: Pointer,`node`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_method_incomingstreamhandler_finalize_stream(`ptr`: Pointer,
+): Long
+fun uniffi_acup2p_fn_clone_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_free_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_acup2p_fn_init_callback_vtable_streamconsumer(`vtable`: UniffiVTableCallbackInterfaceStreamConsumer,
+): Unit
+fun uniffi_acup2p_fn_method_streamconsumer_next_read(`ptr`: Pointer,
+): Long
+fun uniffi_acup2p_fn_method_streamconsumer_on_bytes(`ptr`: Pointer,`read`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_clone_streamproducer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_free_streamproducer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_acup2p_fn_init_callback_vtable_streamproducer(`vtable`: UniffiVTableCallbackInterfaceStreamProducer,
+): Unit
+fun uniffi_acup2p_fn_method_streamproducer_next_bytes(`ptr`: Pointer,
+): Long
+fun uniffi_acup2p_fn_method_streamproducer_on_finished(`ptr`: Pointer,`write`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_func_bind(`handler`: Pointer,`incomingStreamHandlers`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_func_default_config(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_acup2p_fn_func_node_id_from_public_key(`pk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun ffi_acup2p_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_u8(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_u8(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun ffi_acup2p_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_i8(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_i8(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun ffi_acup2p_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_u16(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_u16(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Short
+fun ffi_acup2p_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_i16(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_i16(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Short
+fun ffi_acup2p_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_u32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_u32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Int
+fun ffi_acup2p_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_i32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_i32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Int
+fun ffi_acup2p_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_u64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_u64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+fun ffi_acup2p_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_i64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_i64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+fun ffi_acup2p_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_f32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_f32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Float
+fun ffi_acup2p_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_f64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_f64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Double
+fun ffi_acup2p_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_pointer(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_pointer(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun ffi_acup2p_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_rust_buffer(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_rust_buffer(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_void(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_void(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+
 }
 
-private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
+private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
     // Get the bindings contract version from our ComponentInterface
-    val bindings_contract_version = 26
+    val bindings_contract_version = 29
     // Get the scaffolding contract version by calling the into the dylib
     val scaffolding_contract_version = lib.ffi_acup2p_uniffi_contract_version()
     if (bindings_contract_version != scaffolding_contract_version) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
 }
-
 @Suppress("UNUSED_PARAMETER")
-private fun uniffiCheckApiChecksums(lib: UniffiLib) {
+private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_acup2p_checksum_func_bind() != 46819.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_acup2p_checksum_func_default_config() != 48253.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_acup2p_checksum_func_node_id_from_public_key() != 19406.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_acup2p_checksum_method_handler_on_event() != 56660.toShort()) {
@@ -1142,6 +1193,13 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_acup2p_checksum_method_streamproducer_on_finished() != 58093.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+}
+
+/**
+ * @suppress
+ */
+public fun uniffiEnsureInitialized() {
+    UniffiLib.INSTANCE
 }
 
 // Async support
@@ -1598,6 +1656,7 @@ private class UniffiJnaCleanable(
     override fun clean() = cleanable.clean()
 }
 
+
 // We decide at uniffi binding generation time whether we were
 // using Android or not.
 // There are further runtime checks to chose the correct implementation
@@ -1636,7 +1695,8 @@ public interface Handler {
     companion object
 }
 
-open class HandlerImpl: Disposable, AutoCloseable, Handler {
+open class HandlerImpl: Disposable, AutoCloseable, Handler
+{
 
     constructor(pointer: Pointer) {
         this.pointer = pointer
@@ -2030,7 +2090,8 @@ public interface IncomingStreamHandler {
     companion object
 }
 
-open class IncomingStreamHandlerImpl: Disposable, AutoCloseable, IncomingStreamHandler {
+open class IncomingStreamHandlerImpl: Disposable, AutoCloseable, IncomingStreamHandler
+{
 
     constructor(pointer: Pointer) {
         this.pointer = pointer
@@ -2458,7 +2519,8 @@ public interface StreamConsumer {
     companion object
 }
 
-open class StreamConsumerImpl: Disposable, AutoCloseable, StreamConsumer {
+open class StreamConsumerImpl: Disposable, AutoCloseable, StreamConsumer
+{
 
     constructor(pointer: Pointer) {
         this.pointer = pointer
@@ -2815,7 +2877,8 @@ public interface StreamProducer {
     companion object
 }
 
-open class StreamProducerImpl: Disposable, AutoCloseable, StreamProducer {
+open class StreamProducerImpl: Disposable, AutoCloseable, StreamProducer
+{
 
     constructor(pointer: Pointer) {
         this.pointer = pointer
@@ -3258,6 +3321,65 @@ public object FfiConverterTypeOutboundProtocolResponse: FfiConverterRustBuffer<O
 
 
 
+
+
+sealed class Exception: kotlin.Exception() {
+    
+    class DecodingException(
+        
+        val v1: kotlin.String
+        ) : Exception() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<Exception> {
+        override fun lift(error_buf: RustBuffer.ByValue): Exception = FfiConverterTypeError.lift(error_buf)
+    }
+
+    
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeError : FfiConverterRustBuffer<Exception> {
+    override fun read(buf: ByteBuffer): Exception {
+        
+
+        return when(buf.getInt()) {
+            1 -> Exception.DecodingException(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: Exception): ULong {
+        return when(value) {
+            is Exception.DecodingException -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: Exception, buf: ByteBuffer) {
+        when(value) {
+            is Exception.DecodingException -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+
+}
+
+
+
 sealed class Event {
     
     data class ListeningOn(
@@ -3275,6 +3397,17 @@ sealed class Event {
     
     data class Disconnected(
         val `node`: NodeId) : Event() {
+        companion object
+    }
+    
+    data class ConnectionUpgraded(
+        val `node`: NodeId) : Event() {
+        companion object
+    }
+    
+    data class ConnectionError(
+        val `node`: NodeId, 
+        val `cause`: kotlin.String) : Event() {
         companion object
     }
     
@@ -3302,13 +3435,7 @@ sealed class Event {
         companion object
     }
     
-    data class ConnectionError(
-        val `node`: NodeId, 
-        val `cause`: kotlin.String) : Event() {
-        companion object
-    }
-    
-    data class Error(
+    data class Exception(
         val `cause`: kotlin.String) : Event() {
         companion object
     }
@@ -3334,27 +3461,30 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
             4 -> Event.Disconnected(
                 FfiConverterTypeNodeId.read(buf),
                 )
-            5 -> Event.InboundRequest(
+            5 -> Event.ConnectionUpgraded(
                 FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeInboundProtocolRequest.read(buf),
                 )
-            6 -> Event.InboundResponse(
-                FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeInboundProtocolResponse.read(buf),
-                )
-            7 -> Event.OutboundRequest(
-                FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeOutboundProtocolRequest.read(buf),
-                )
-            8 -> Event.OutboundResponse(
-                FfiConverterTypeNodeId.read(buf),
-                FfiConverterTypeOutboundProtocolResponse.read(buf),
-                )
-            9 -> Event.ConnectionError(
+            6 -> Event.ConnectionError(
                 FfiConverterTypeNodeId.read(buf),
                 FfiConverterString.read(buf),
                 )
-            10 -> Event.Error(
+            7 -> Event.InboundRequest(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterTypeInboundProtocolRequest.read(buf),
+                )
+            8 -> Event.InboundResponse(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterTypeInboundProtocolResponse.read(buf),
+                )
+            9 -> Event.OutboundRequest(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterTypeOutboundProtocolRequest.read(buf),
+                )
+            10 -> Event.OutboundResponse(
+                FfiConverterTypeNodeId.read(buf),
+                FfiConverterTypeOutboundProtocolResponse.read(buf),
+                )
+            11 -> Event.Exception(
                 FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
@@ -3389,6 +3519,21 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 + FfiConverterTypeNodeId.allocationSize(value.`node`)
             )
         }
+        is Event.ConnectionUpgraded -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeNodeId.allocationSize(value.`node`)
+            )
+        }
+        is Event.ConnectionError -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeNodeId.allocationSize(value.`node`)
+                + FfiConverterString.allocationSize(value.`cause`)
+            )
+        }
         is Event.InboundRequest -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
@@ -3421,15 +3566,7 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 + FfiConverterTypeOutboundProtocolResponse.allocationSize(value.`response`)
             )
         }
-        is Event.ConnectionError -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterTypeNodeId.allocationSize(value.`node`)
-                + FfiConverterString.allocationSize(value.`cause`)
-            )
-        }
-        is Event.Error -> {
+        is Event.Exception -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
@@ -3459,38 +3596,43 @@ public object FfiConverterTypeEvent : FfiConverterRustBuffer<Event>{
                 FfiConverterTypeNodeId.write(value.`node`, buf)
                 Unit
             }
-            is Event.InboundRequest -> {
+            is Event.ConnectionUpgraded -> {
                 buf.putInt(5)
+                FfiConverterTypeNodeId.write(value.`node`, buf)
+                Unit
+            }
+            is Event.ConnectionError -> {
+                buf.putInt(6)
+                FfiConverterTypeNodeId.write(value.`node`, buf)
+                FfiConverterString.write(value.`cause`, buf)
+                Unit
+            }
+            is Event.InboundRequest -> {
+                buf.putInt(7)
                 FfiConverterTypeNodeId.write(value.`sender`, buf)
                 FfiConverterTypeInboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.InboundResponse -> {
-                buf.putInt(6)
+                buf.putInt(8)
                 FfiConverterTypeNodeId.write(value.`sender`, buf)
                 FfiConverterTypeInboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
             is Event.OutboundRequest -> {
-                buf.putInt(7)
+                buf.putInt(9)
                 FfiConverterTypeNodeId.write(value.`receiver`, buf)
                 FfiConverterTypeOutboundProtocolRequest.write(value.`request`, buf)
                 Unit
             }
             is Event.OutboundResponse -> {
-                buf.putInt(8)
+                buf.putInt(10)
                 FfiConverterTypeNodeId.write(value.`receiver`, buf)
                 FfiConverterTypeOutboundProtocolResponse.write(value.`response`, buf)
                 Unit
             }
-            is Event.ConnectionError -> {
-                buf.putInt(9)
-                FfiConverterTypeNodeId.write(value.`node`, buf)
-                FfiConverterString.write(value.`cause`, buf)
-                Unit
-            }
-            is Event.Error -> {
-                buf.putInt(10)
+            is Event.Exception -> {
+                buf.putInt(11)
                 FfiConverterString.write(value.`cause`, buf)
                 Unit
             }
@@ -3612,9 +3754,6 @@ sealed class Intent: Disposable  {
         companion object
     }
     
-    object Close : Intent()
-    
-    
 
     
     @Suppress("UNNECESSARY_SAFE_CALL") // codegen is much simpler if we unconditionally emit safe calls here
@@ -3652,8 +3791,6 @@ sealed class Intent: Disposable  {
     
                 
             }
-            is Intent.Close -> {// Nothing to destroy
-            }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
     
@@ -3682,7 +3819,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 FfiConverterTypeStreamProducer.read(buf),
                 FfiConverterTypeStreamConsumer.read(buf),
                 )
-            5 -> Intent.Close
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
@@ -3720,12 +3856,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 + FfiConverterTypeStreamConsumer.allocationSize(value.`consumer`)
             )
         }
-        is Intent.Close -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
     }
 
     override fun write(value: Intent, buf: ByteBuffer) {
@@ -3752,10 +3882,6 @@ public object FfiConverterTypeIntent : FfiConverterRustBuffer<Intent>{
                 FfiConverterTypeNodeId.write(value.`node`, buf)
                 FfiConverterTypeStreamProducer.write(value.`producer`, buf)
                 FfiConverterTypeStreamConsumer.write(value.`consumer`, buf)
-                Unit
-            }
-            is Intent.Close -> {
-                buf.putInt(5)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -3930,6 +4056,56 @@ public object FfiConverterTypeOutboundProtocolMessage : FfiConverterRustBuffer<O
             is OutboundProtocolMessage.Response -> {
                 buf.putInt(2)
                 FfiConverterTypeOutboundProtocolResponse.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
+sealed class PublicKey {
+    
+    data class Ed25519(
+        val v1: kotlin.ByteArray) : PublicKey() {
+        companion object
+    }
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePublicKey : FfiConverterRustBuffer<PublicKey>{
+    override fun read(buf: ByteBuffer): PublicKey {
+        return when(buf.getInt()) {
+            1 -> PublicKey.Ed25519(
+                FfiConverterByteArray.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: PublicKey) = when(value) {
+        is PublicKey.Ed25519 -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterByteArray.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: PublicKey, buf: ByteBuffer) {
+        when(value) {
+            is PublicKey.Ed25519 -> {
+                buf.putInt(1)
+                FfiConverterByteArray.write(value.v1, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -4434,6 +4610,16 @@ public object FfiConverterSequenceTypeNodeId: FfiConverterRustBuffer<List<NodeId
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_acup2p_fn_func_default_config(
         _status)
+}
+    )
+    }
+    
+
+    @Throws(Exception::class) fun `nodeIdFromPublicKey`(`pk`: PublicKey): NodeId {
+            return FfiConverterTypeNodeId.lift(
+    uniffiRustCallWithError(Exception) { _status ->
+    UniffiLib.INSTANCE.uniffi_acup2p_fn_func_node_id_from_public_key(
+        FfiConverterTypePublicKey.lower(`pk`),_status)
 }
     )
     }

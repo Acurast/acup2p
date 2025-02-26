@@ -27,7 +27,7 @@ use crate::types::{MaybeInto, ReconnectPolicy, Result};
 use super::behaviour::Behaviour;
 use super::identity::ed25519;
 use super::node::NodeId;
-use super::relay::Relay;
+use super::dcutr::Relay;
 use super::Intent;
 
 use self::listen::ListenerType;
@@ -59,10 +59,10 @@ pub(super) struct NodeInner {
 }
 
 impl NodeInner {
-    pub(super) async fn new(
+    pub(super) async fn new<L>(
         event_tx: Sender<Event>,
         intent_rx: Receiver<Intent>,
-        config: base::Config<'_>,
+        config: &base::Config<'_, L>,
     ) -> Result<Self> {
         let security_upgrade = (tls::Config::new, noise::Config::new);
 

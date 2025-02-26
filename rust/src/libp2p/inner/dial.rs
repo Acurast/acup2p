@@ -27,17 +27,25 @@ impl NodeInner {
     async fn dial(&mut self, node: NodeId) -> Result<(), Error> {
         match self.swarm.dial(node.clone()) {
             Ok(_) => {}
-            Err(DialError::Aborted)
-            | Err(DialError::Denied { .. })
-            | Err(DialError::Transport(_)) => {
-                let retry_delay = Duration::from_secs(1);
-                match self.reconn_policy {
-                    ReconnectPolicy::Never => {}
-                    ReconnectPolicy::Attempts(_) => { /* TODO: implement when required */ }
-                    ReconnectPolicy::Always => self.send_dial_intent(node, Some(retry_delay)).await,
+            Err(e) => {
+                tracing::info!(peer=%node, %e, "dial peer failed");
+                match e {
+                    DialError::Aborted
+                    | DialError::Denied { .. }
+                    | DialError::Transport(_) => {
+                        let retry_delay = Duration::from_secs(1);
+                        match self.reconn_policy {
+                            ReconnectPolicy::Never => return Err(Error::NodeUnreachable(node, e)),
+                            ReconnectPolicy::Attempts(_) => { /* TODO: implement when required */ }
+                            ReconnectPolicy::Always => {
+                                tracing::info!(peer=%node, "retry dial peer after {retry_delay:?}");
+                                self.send_dial_intent(node, Some(retry_delay)).await
+                            },
+                        }
+                    }
+                    _ => return Err(Error::NodeUnreachable(node, e)),
                 }
             }
-            Err(e) => return Err(Error::NodeUnreachable(node, e)),
         }
 
         Ok(())
