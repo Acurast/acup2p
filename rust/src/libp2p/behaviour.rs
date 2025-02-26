@@ -14,7 +14,7 @@ use libp2p::swarm::{
 };
 use libp2p::{dcutr, identify, mdns, ping, relay, Multiaddr, PeerId, StreamProtocol};
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::rng;
 use {libp2p_request_response as request_response, libp2p_stream as stream};
 
 use crate::libp2p::message;
@@ -264,7 +264,7 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         let mut behaviours: Vec<_> = self.behaviours.iter_mut().collect::<Vec<_>>();
-        behaviours.shuffle(&mut thread_rng());
+        behaviours.shuffle(&mut rng());
 
         for (protocol, behaviour) in behaviours {
             match behaviour.poll(cx).map(|e| match e {
