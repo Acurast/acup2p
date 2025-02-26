@@ -877,21 +877,93 @@ internal open class UniffiVTableCallbackInterfaceStreamProducer(
 
 
 
+// For large crates we prevent `MethodTooLargeException` (see #2340)
+// N.B. the name of the extension is very misleading, since it is 
+// rather `InterfaceTooLargeException`, caused by too many methods 
+// in the interface for large crates.
+//
+// By splitting the otherwise huge interface into two parts
+// * UniffiLib 
+// * IntegrityCheckingUniffiLib (this)
+// we allow for ~2x as many methods in the UniffiLib interface.
+// 
+// The `ffi_uniffi_contract_version` method and all checksum methods are put 
+// into `IntegrityCheckingUniffiLib` and these methods are called only once,
+// when the library is loaded.
+internal interface IntegrityCheckingUniffiLib : Library {
+    // Integrity check functions only
+    fun uniffi_acup2p_checksum_func_bind(
+): Short
+fun uniffi_acup2p_checksum_func_default_config(
+): Short
+fun uniffi_acup2p_checksum_func_node_id_from_public_key(
+): Short
+fun uniffi_acup2p_checksum_method_handler_on_event(
+): Short
+fun uniffi_acup2p_checksum_method_handler_next_intent(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_protocol(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_consumer(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_producer(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_create_stream(
+): Short
+fun uniffi_acup2p_checksum_method_incomingstreamhandler_finalize_stream(
+): Short
+fun uniffi_acup2p_checksum_method_streamconsumer_next_read(
+): Short
+fun uniffi_acup2p_checksum_method_streamconsumer_on_bytes(
+): Short
+fun uniffi_acup2p_checksum_method_streamproducer_next_bytes(
+): Short
+fun uniffi_acup2p_checksum_method_streamproducer_on_finished(
+): Short
+fun ffi_acup2p_uniffi_contract_version(
+): Int
+
+}
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
-
 internal interface UniffiLib : Library {
     companion object {
         internal val INSTANCE: UniffiLib by lazy {
-            loadIndirect<UniffiLib>(componentName = "acup2p")
-            .also { lib: UniffiLib ->
-                uniffiCheckContractApiVersion(lib)
-                uniffiCheckApiChecksums(lib)
-                uniffiCallbackInterfaceHandler.register(lib)
-                uniffiCallbackInterfaceIncomingStreamHandler.register(lib)
-                uniffiCallbackInterfaceStreamConsumer.register(lib)
-                uniffiCallbackInterfaceStreamProducer.register(lib)
+            val componentName = "acup2p"
+            // For large crates we prevent `MethodTooLargeException` (see #2340)
+            // N.B. the name of the extension is very misleading, since it is 
+            // rather `InterfaceTooLargeException`, caused by too many methods 
+            // in the interface for large crates.
+            //
+            // By splitting the otherwise huge interface into two parts
+            // * UniffiLib (this)
+            // * IntegrityCheckingUniffiLib
+            // And all checksum methods are put into `IntegrityCheckingUniffiLib`
+            // we allow for ~2x as many methods in the UniffiLib interface.
+            // 
+            // Thus we first load the library with `loadIndirect` as `IntegrityCheckingUniffiLib`
+            // so that we can (optionally!) call `uniffiCheckApiChecksums`...
+            loadIndirect<IntegrityCheckingUniffiLib>(componentName)
+                .also { lib: IntegrityCheckingUniffiLib ->
+                    uniffiCheckContractApiVersion(lib)
+                    uniffiCheckApiChecksums(lib)
                 }
+            // ... and then we load the library as `UniffiLib`
+            // N.B. we cannot use `loadIndirect` once and then try to cast it to `UniffiLib`
+            // => results in `java.lang.ClassCastException: com.sun.proxy.$Proxy cannot be cast to ...`
+            // error. So we must call `loadIndirect` twice. For crates large enough
+            // to trigger this issue, the performance impact is negligible, running on
+            // a macOS M1 machine the `loadIndirect` call takes ~50ms.
+            val lib = loadIndirect<UniffiLib>(componentName)
+            // No need to check the contract version and checksums, since 
+            // we already did that with `IntegrityCheckingUniffiLib` above.
+            uniffiCallbackInterfaceHandler.register(lib)
+            uniffiCallbackInterfaceIncomingStreamHandler.register(lib)
+            uniffiCallbackInterfaceStreamConsumer.register(lib)
+            uniffiCallbackInterfaceStreamProducer.register(lib)
+            // Loading of library with integrity check done.
+            lib
         }
         
         // The Cleaner for the whole library
@@ -900,215 +972,185 @@ internal interface UniffiLib : Library {
         }
     }
 
+    // FFI functions
     fun uniffi_acup2p_fn_clone_handler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_free_handler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_fn_init_callback_vtable_handler(`vtable`: UniffiVTableCallbackInterfaceHandler,
-    ): Unit
-    fun uniffi_acup2p_fn_method_handler_on_event(`ptr`: Pointer,`event`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_method_handler_next_intent(`ptr`: Pointer,
-    ): Long
-    fun uniffi_acup2p_fn_clone_incomingstreamhandler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_free_incomingstreamhandler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_fn_init_callback_vtable_incomingstreamhandler(`vtable`: UniffiVTableCallbackInterfaceIncomingStreamHandler,
-    ): Unit
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_protocol(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_consumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_producer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_create_stream(`ptr`: Pointer,`node`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_method_incomingstreamhandler_finalize_stream(`ptr`: Pointer,
-    ): Long
-    fun uniffi_acup2p_fn_clone_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_free_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_fn_init_callback_vtable_streamconsumer(`vtable`: UniffiVTableCallbackInterfaceStreamConsumer,
-    ): Unit
-    fun uniffi_acup2p_fn_method_streamconsumer_next_read(`ptr`: Pointer,
-    ): Long
-    fun uniffi_acup2p_fn_method_streamconsumer_on_bytes(`ptr`: Pointer,`read`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_clone_streamproducer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_acup2p_fn_free_streamproducer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_fn_init_callback_vtable_streamproducer(`vtable`: UniffiVTableCallbackInterfaceStreamProducer,
-    ): Unit
-    fun uniffi_acup2p_fn_method_streamproducer_next_bytes(`ptr`: Pointer,
-    ): Long
-    fun uniffi_acup2p_fn_method_streamproducer_on_finished(`ptr`: Pointer,`write`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_func_bind(`handler`: Pointer,`incomingStreamHandlers`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,
-    ): Long
-    fun uniffi_acup2p_fn_func_default_config(uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun uniffi_acup2p_fn_func_node_id_from_public_key(`pk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun ffi_acup2p_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_u8(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_u8(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
-    fun ffi_acup2p_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_i8(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_i8(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
-    fun ffi_acup2p_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_u16(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_u16(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Short
-    fun ffi_acup2p_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_i16(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_i16(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Short
-    fun ffi_acup2p_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_u32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_u32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    fun ffi_acup2p_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_i32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_i32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    fun ffi_acup2p_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_u64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_u64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
-    fun ffi_acup2p_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_i64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_i64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
-    fun ffi_acup2p_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_f32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_f32(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Float
-    fun ffi_acup2p_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_f64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_f64(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Double
-    fun ffi_acup2p_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_pointer(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_pointer(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun ffi_acup2p_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_rust_buffer(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_rust_buffer(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_acup2p_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_cancel_void(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_free_void(`handle`: Long,
-    ): Unit
-    fun ffi_acup2p_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_acup2p_checksum_func_bind(
-    ): Short
-    fun uniffi_acup2p_checksum_func_default_config(
-    ): Short
-    fun uniffi_acup2p_checksum_func_node_id_from_public_key(
-    ): Short
-    fun uniffi_acup2p_checksum_method_handler_on_event(
-    ): Short
-    fun uniffi_acup2p_checksum_method_handler_next_intent(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_protocol(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_consumer(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_producer(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_create_stream(
-    ): Short
-    fun uniffi_acup2p_checksum_method_incomingstreamhandler_finalize_stream(
-    ): Short
-    fun uniffi_acup2p_checksum_method_streamconsumer_next_read(
-    ): Short
-    fun uniffi_acup2p_checksum_method_streamconsumer_on_bytes(
-    ): Short
-    fun uniffi_acup2p_checksum_method_streamproducer_next_bytes(
-    ): Short
-    fun uniffi_acup2p_checksum_method_streamproducer_on_finished(
-    ): Short
-    fun ffi_acup2p_uniffi_contract_version(
-    ): Int
-    
+): Pointer
+fun uniffi_acup2p_fn_free_handler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_acup2p_fn_init_callback_vtable_handler(`vtable`: UniffiVTableCallbackInterfaceHandler,
+): Unit
+fun uniffi_acup2p_fn_method_handler_on_event(`ptr`: Pointer,`event`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_method_handler_next_intent(`ptr`: Pointer,
+): Long
+fun uniffi_acup2p_fn_clone_incomingstreamhandler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_free_incomingstreamhandler(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_acup2p_fn_init_callback_vtable_incomingstreamhandler(`vtable`: UniffiVTableCallbackInterfaceIncomingStreamHandler,
+): Unit
+fun uniffi_acup2p_fn_method_incomingstreamhandler_protocol(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_acup2p_fn_method_incomingstreamhandler_consumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_method_incomingstreamhandler_producer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_method_incomingstreamhandler_create_stream(`ptr`: Pointer,`node`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_method_incomingstreamhandler_finalize_stream(`ptr`: Pointer,
+): Long
+fun uniffi_acup2p_fn_clone_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_free_streamconsumer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_acup2p_fn_init_callback_vtable_streamconsumer(`vtable`: UniffiVTableCallbackInterfaceStreamConsumer,
+): Unit
+fun uniffi_acup2p_fn_method_streamconsumer_next_read(`ptr`: Pointer,
+): Long
+fun uniffi_acup2p_fn_method_streamconsumer_on_bytes(`ptr`: Pointer,`read`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_clone_streamproducer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_acup2p_fn_free_streamproducer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_acup2p_fn_init_callback_vtable_streamproducer(`vtable`: UniffiVTableCallbackInterfaceStreamProducer,
+): Unit
+fun uniffi_acup2p_fn_method_streamproducer_next_bytes(`ptr`: Pointer,
+): Long
+fun uniffi_acup2p_fn_method_streamproducer_on_finished(`ptr`: Pointer,`write`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_func_bind(`handler`: Pointer,`incomingStreamHandlers`: RustBuffer.ByValue,`config`: RustBuffer.ByValue,
+): Long
+fun uniffi_acup2p_fn_func_default_config(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_acup2p_fn_func_node_id_from_public_key(`pk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun ffi_acup2p_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_u8(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_u8(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun ffi_acup2p_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_i8(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_i8(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun ffi_acup2p_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_u16(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_u16(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Short
+fun ffi_acup2p_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_i16(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_i16(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Short
+fun ffi_acup2p_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_u32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_u32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Int
+fun ffi_acup2p_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_i32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_i32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Int
+fun ffi_acup2p_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_u64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_u64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+fun ffi_acup2p_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_i64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_i64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+fun ffi_acup2p_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_f32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_f32(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Float
+fun ffi_acup2p_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_f64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_f64(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Double
+fun ffi_acup2p_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_pointer(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_pointer(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun ffi_acup2p_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_rust_buffer(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_rust_buffer(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun ffi_acup2p_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+fun ffi_acup2p_rust_future_cancel_void(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_free_void(`handle`: Long,
+): Unit
+fun ffi_acup2p_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+
 }
 
-private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
+private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
     // Get the bindings contract version from our ComponentInterface
-    val bindings_contract_version = 26
+    val bindings_contract_version = 29
     // Get the scaffolding contract version by calling the into the dylib
     val scaffolding_contract_version = lib.ffi_acup2p_uniffi_contract_version()
     if (bindings_contract_version != scaffolding_contract_version) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
 }
-
 @Suppress("UNUSED_PARAMETER")
-private fun uniffiCheckApiChecksums(lib: UniffiLib) {
+private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_acup2p_checksum_func_bind() != 46819.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1151,6 +1193,13 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_acup2p_checksum_method_streamproducer_on_finished() != 58093.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+}
+
+/**
+ * @suppress
+ */
+public fun uniffiEnsureInitialized() {
+    UniffiLib.INSTANCE
 }
 
 // Async support
@@ -1607,6 +1656,7 @@ private class UniffiJnaCleanable(
     override fun clean() = cleanable.clean()
 }
 
+
 // We decide at uniffi binding generation time whether we were
 // using Android or not.
 // There are further runtime checks to chose the correct implementation
@@ -1645,7 +1695,8 @@ public interface Handler {
     companion object
 }
 
-open class HandlerImpl: Disposable, AutoCloseable, Handler {
+open class HandlerImpl: Disposable, AutoCloseable, Handler
+{
 
     constructor(pointer: Pointer) {
         this.pointer = pointer
@@ -2039,7 +2090,8 @@ public interface IncomingStreamHandler {
     companion object
 }
 
-open class IncomingStreamHandlerImpl: Disposable, AutoCloseable, IncomingStreamHandler {
+open class IncomingStreamHandlerImpl: Disposable, AutoCloseable, IncomingStreamHandler
+{
 
     constructor(pointer: Pointer) {
         this.pointer = pointer
@@ -2467,7 +2519,8 @@ public interface StreamConsumer {
     companion object
 }
 
-open class StreamConsumerImpl: Disposable, AutoCloseable, StreamConsumer {
+open class StreamConsumerImpl: Disposable, AutoCloseable, StreamConsumer
+{
 
     constructor(pointer: Pointer) {
         this.pointer = pointer
@@ -2824,7 +2877,8 @@ public interface StreamProducer {
     companion object
 }
 
-open class StreamProducerImpl: Disposable, AutoCloseable, StreamProducer {
+open class StreamProducerImpl: Disposable, AutoCloseable, StreamProducer
+{
 
     constructor(pointer: Pointer) {
         this.pointer = pointer

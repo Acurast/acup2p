@@ -217,7 +217,9 @@ impl NodeInner {
                         request_id,
                         request,
                         channel,
+                        ..
                     },
+                ..
             } => {
                 let request_id = request_id.to_string();
                 self.response_channels.insert(
@@ -233,7 +235,9 @@ impl NodeInner {
                     request_response::Message::Response {
                         request_id,
                         response,
+                        ..
                     },
+                ..
             } => {
                 let request_id = request_id.to_string();
                 self.notify_inbound_response(&peer, event.0, response, request_id)
