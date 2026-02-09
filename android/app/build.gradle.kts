@@ -10,7 +10,7 @@ plugins {
 object Library {
     const val groupId = "com.acurast.p2p"
     const val artifactId = "acup2p"
-    const val version = "1.2.0"
+    const val version = "1.2.1"
 }
 
 android {
@@ -53,6 +53,7 @@ cargo {
     targets = listOf("arm", "arm64")
     profile = "release"
     prebuiltToolchains = true
+    apiLevel = 29
 }
 
 publishing {
